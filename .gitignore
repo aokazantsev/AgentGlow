@@ -1,0 +1,10 @@
+ClaudeGlow.exe
+ClaudeGlow.old.exe
+ClaudeGlow.exe.config
+Uninstall.exe
+settings.txt
+sessions.txt
+log.txt
+log.old.txt
+installer/obj/
+dist/
