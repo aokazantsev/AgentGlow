@@ -8,7 +8,7 @@ namespace ClaudeGlow
 {
     internal static class CrashUploader
     {
-        private const string Endpoint = "https://aokazantsev.ru/api/crash-report";
+        private const string Endpoint = AppIdentity.SiteUrl + "crash-report";
         private const int TimeoutMs = 5000;
         private const int LogTailBytes = 100 * 1024;
 
