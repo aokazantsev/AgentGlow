@@ -31,6 +31,17 @@ namespace ClaudeGlow
 
         public string LastError { get; private set; }
 
+        public bool NotResponding { get; private set; }
+
+        public string ConnectionText
+        {
+            get
+            {
+                if (IsConnected) return "подключено";
+                return NotResponding ? "не отвечает" : "нет связи";
+            }
+        }
+
         public int DeviceCount
         {
             get { return controllers == null ? 0 : controllers.Count; }
@@ -114,10 +125,12 @@ namespace ClaudeGlow
             }
             catch (Exception error)
             {
-                LastError = error.GetType().Name + ": " + error.Message;
+                NotResponding = candidate.SocketConnected;
+                LastError = (NotResponding ? "порт открыт, но OpenRGB не отвечает — " : "") + error.GetType().Name + ": " + error.Message;
                 candidate.Dispose();
                 return false;
             }
+            NotResponding = false;
             client = candidate;
             if (Targets().Count == 0)
             {

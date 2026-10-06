@@ -30,12 +30,15 @@ namespace ClaudeGlow
         private NetworkStream stream;
         private bool deviceListUpdated;
 
+        public bool SocketConnected { get; private set; }
+
         public void Connect()
         {
             tcp = new TcpClient();
             tcp.ReceiveTimeout = SocketTimeoutMs;
             tcp.SendTimeout = SocketTimeoutMs;
             tcp.Connect(IPAddress.Loopback, ServerPort);
+            SocketConnected = true;
             stream = tcp.GetStream();
             Send(0, RequestProtocolVersion, new ProtocolWriter().U32(ProtocolVersion).ToArray());
             uint serverVersion = new ProtocolReader(Receive(RequestProtocolVersion)).U32();

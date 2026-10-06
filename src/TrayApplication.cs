@@ -38,7 +38,8 @@ namespace ClaudeGlow
         private StatusEffect previewEffect;
         private bool paused;
         private bool dark;
-        private bool? loggedOpenRgbConnected;
+        private string loggedOpenRgbState;
+        private bool openRgbRestartRunning;
         private DateTime lastActivityUtc = DateTime.UtcNow;
         private DateTime lastLaunchAttemptUtc = DateTime.MinValue;
         private SettingsForm settingsForm;
@@ -250,7 +251,7 @@ namespace ClaudeGlow
             Color right = IsSplit() ? IconColor(GlowStatus.Working) : left;
             trayIcon.Icon = StatusIconPainter.Paint(left, right, lighting.IsConnected);
             string text = AppTitle + ": " + StatusText();
-            if (!lighting.IsConnected) text += "\nOpenRGB: нет связи";
+            if (!lighting.IsConnected) text += "\nOpenRGB: " + lighting.ConnectionText;
             trayIcon.Text = text.Length > MaxTrayTextLength ? text.Substring(0, MaxTrayTextLength) : text;
         }
 
@@ -259,7 +260,13 @@ namespace ClaudeGlow
             ContextMenuStrip menu = trayIcon.ContextMenuStrip;
             menu.Items.Clear();
             menu.Items.Add(Disabled("Статус: " + StatusText()));
-            menu.Items.Add(Disabled("OpenRGB: " + (lighting.IsConnected ? "подключено" : "нет связи")));
+            menu.Items.Add(Disabled("OpenRGB: " + lighting.ConnectionText));
+            if (!lighting.IsConnected && OpenRgbService.IsInstalled())
+            {
+                var restartItem = new ToolStripMenuItem("Перезапустить службу OpenRGB", null, OnRestartOpenRgbClick);
+                restartItem.Enabled = !openRgbRestartRunning;
+                menu.Items.Add(restartItem);
+            }
             if (ClaudeHooks.AreInstalled(settings.HookPort))
             {
                 menu.Items.Add(Disabled("Хуки Claude Code: подключены"));
@@ -406,12 +413,44 @@ namespace ClaudeGlow
 
         private void LogOpenRgbState()
         {
-            bool connected = lighting.IsConnected;
-            if (loggedOpenRgbConnected.HasValue && loggedOpenRgbConnected.Value == connected) return;
-            loggedOpenRgbConnected = connected;
-            AppLog.Append(connected
+            string state = lighting.ConnectionText;
+            if (state == loggedOpenRgbState) return;
+            loggedOpenRgbState = state;
+            AppLog.Append(lighting.IsConnected
                 ? "OpenRGB connected, devices: " + lighting.DeviceCount
-                : "OpenRGB not connected: " + (lighting.LastError ?? "unknown reason"));
+                : "OpenRGB " + state + ": " + (lighting.LastError ?? "unknown reason"));
+            UpdateTrayIcon();
+        }
+
+        private void OnRestartOpenRgbClick(object sender, EventArgs e)
+        {
+            if (openRgbRestartRunning) return;
+            openRgbRestartRunning = true;
+            AppLog.Append("OpenRGB service restart requested");
+            System.Threading.ThreadPool.QueueUserWorkItem(state =>
+            {
+                string problem = OpenRgbService.RestartElevated();
+                try
+                {
+                    invoker.BeginInvoke(new Action(() => OnOpenRgbRestarted(problem)));
+                }
+                catch (InvalidOperationException)
+                {
+                }
+            });
+        }
+
+        private void OnOpenRgbRestarted(string problem)
+        {
+            openRgbRestartRunning = false;
+            AppLog.Append(problem == null ? "OpenRGB service restarted" : "OpenRGB service restart failed: " + problem);
+            if (problem != null)
+            {
+                trayIcon.ShowBalloonTip(5000, AppTitle, "Службу OpenRGB перезапустить не удалось: " + problem, ToolTipIcon.Warning);
+                return;
+            }
+            Connect();
+            if (lighting.IsConnected) Refresh();
         }
 
         private void OnHousekeepingTick(object sender, EventArgs e)
