@@ -434,6 +434,7 @@ namespace ClaudeGlow
 
         private void Drop()
         {
+            if (client != null && LastError == null) LastError = "соединение с OpenRGB оборвалось";
             if (client != null) client.Dispose();
             client = null;
             applied = null;

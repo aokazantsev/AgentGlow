@@ -449,6 +449,7 @@ namespace ClaudeGlow
         private void LogOpenRgbState()
         {
             string state = lighting.ConnectionText;
+            if (!lighting.IsConnected && !openRgbRestartRunning && !reconnectTimer.Enabled) reconnectTimer.Start();
             if (state == loggedOpenRgbState) return;
             loggedOpenRgbState = state;
             AppLog.Append(lighting.IsConnected
