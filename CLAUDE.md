@@ -7,7 +7,7 @@
 - Штатный `csc.exe` .NET Framework 4.8, **C# 5**: нет `$"..."`, `?.`, `nameof`, `=>`-членов,
   инициализаторов авто-свойств, `out var`.
 - Собирать `build.cmd nostart`. Без `nostart` вызов из Bash висит, пока программа запущена.
-- Репозиторий и установленная копия (`%LOCALAPPDATA%\Programs\ClaudeGlow`) — разные папки. Сборка
+- Репозиторий и установленная копия (`C:\Program Files\ClaudeGlow`) — разные папки. Сборка
   трогает только свой `ClaudeGlow.exe`: занят — переименовывается в `ClaudeGlow.old.exe`. Установленный
   экземпляр обновляется установщиком. Два ClaudeGlow сразу не запустить: второй выходит по мьютексу.
 
@@ -33,3 +33,27 @@
 
 - Heredoc в Bash ест обратные слэши — `.cmd` и строки с `\` писать инструментом записи или python-скриптом.
 - `.cmd` — CRLF и только ASCII; соседние скрипты и сам `.cmd` вызывать полным путём.
+
+## Общее с другими pet-проектами
+
+Проект — один из трёх pet-проектов (ClaudeVpnGuard, DevMonitor, ClaudeGlow), они устроены одинаково:
+похожий интерфейс, одинаковые установщик, деинсталлятор, порядок меню и код общих частей.
+
+- **Общие файлы** — одинаковые во всех трёх, отличается только `namespace`:
+  `installer\setup\{SetupForm, Installation, InstallTarget, Payload, SetupOption, SetupField,
+  InstallRequest, SetupProgram}.cs`, `installer\common\{UninstallRegistration, RunningApp}.cs`,
+  `installer\uninstall\UninstallProgram.cs`, `src\AboutForm.cs`. `build.cmd`, `build-installer.cmd`,
+  `installer\make-payload.ps1` отличаются только переменными в начале. Поменял общий файл — та же
+  правка в двух других проектах.
+- **Своё у проекта:** `src\AppIdentity.cs` (имя, версия, ссылки, пути), `src\Autostart.cs` (задача
+  Планировщика или ключ Run), `installer\setup\SetupProfile.cs` (тексты, поля, галочки, свои шаги),
+  `installer\uninstall\UninstallProfile.cs`, `installer\payload.txt` (что ставится).
+- **Меню трея:** блок состояния; действия приложения; «Настройки…», «Журнал» (если есть),
+  «Запускать при входе в Windows», «О приложении…»; «Выход».
+- **Установщик:** права администратора, выбор папки (по умолчанию `C:\Program Files\<Имя>`), галочка
+  автозапуска, сам останавливает запущенную копию, после установки запускает программу. Регистрация
+  в «Приложениях» — в HKLM. Деинсталлятор сам закрывает программу и удаляет её данные.
+- **Любая правка доводится до конца:** версия в `AppIdentity.Version` и трёх `AssemblyInfo.cs`, запись
+  в `CHANGELOG.md`, сборка `build-installer.cmd`, проверка Защитником, коммит и push, Release на
+  GitHub с установщиком, при необходимости — README, скриншоты в `docs\` и страница на
+  aokazantsev.ru/pets.

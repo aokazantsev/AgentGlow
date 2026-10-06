@@ -5,8 +5,7 @@ namespace ClaudeGlow
 {
     internal static class UserDataPaths
     {
-        public static readonly string Directory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClaudeGlow");
+        public static readonly string Directory = AppIdentity.DataDirectory;
 
         public static string File(string name)
         {

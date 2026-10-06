@@ -49,7 +49,6 @@ namespace ClaudeGlow
             if (firstRun)
             {
                 settings.TrySave();
-                StartupRegistration.TrySetEnabled(true);
             }
             invoker.CreateControl();
             trayIcon.ContextMenuStrip = new ContextMenuStrip();
@@ -114,7 +113,7 @@ namespace ClaudeGlow
             {
                 listener = null;
                 string message = "Порт " + settings.HookPort + " занят, события Claude не принимаются: " + exception.Message;
-                HookLog.Append(message);
+                AppLog.Append(message);
                 trayIcon.ShowBalloonTip(5000, AppTitle, message, ToolTipIcon.Warning);
             }
         }
@@ -135,12 +134,12 @@ namespace ClaudeGlow
             HookEvent hookEvent = HookEventParser.Parse(body);
             if (hookEvent == null)
             {
-                HookLog.Append("unparsed event, " + body.Length + " chars");
+                AppLog.Append("unparsed event, " + body.Length + " chars");
                 return;
             }
             lastActivityUtc = DateTime.UtcNow;
             bool changed = tracker.Apply(hookEvent, claudeProcess, DateTime.UtcNow) || dark;
-            HookLog.Append(hookEvent.EventName + " " + (hookEvent.NotificationType ?? hookEvent.ToolName ?? "")
+            AppLog.Append(hookEvent.EventName + " " + (hookEvent.NotificationType ?? hookEvent.ToolName ?? "")
                 + (hookEvent.EventName == "Stop" ? "bg=" + hookEvent.BackgroundTaskCount : "")
                 + " session=" + ShortId(hookEvent.SessionId)
                 + " pid=" + (claudeProcess == null ? "?" : claudeProcess.ProcessId.ToString())
@@ -162,7 +161,7 @@ namespace ClaudeGlow
             if (settings.LaunchOpenRgb && DateTime.UtcNow - lastLaunchAttemptUtc > LaunchRetryInterval)
             {
                 lastLaunchAttemptUtc = DateTime.UtcNow;
-                if (OpenRgbLauncher.TryStart(settings.OpenRgbPath)) HookLog.Append("OpenRGB started");
+                if (OpenRgbLauncher.TryStart(settings.OpenRgbPath)) AppLog.Append("OpenRGB started");
             }
             reconnectTimer.Start();
         }
@@ -266,15 +265,16 @@ namespace ClaudeGlow
                 menu.Items.Add(Disabled(sessions[i].Project + " — " + StatusCatalog.DisplayName(sessions[i].Status)));
             }
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(new ToolStripMenuItem("Настройки…", null, OnSettingsClick));
             var pauseItem = new ToolStripMenuItem("Приостановить индикацию", null, OnPauseClick);
             pauseItem.Checked = paused;
             menu.Items.Add(pauseItem);
-            var startupItem = new ToolStripMenuItem("Запускать при входе в Windows", null, OnStartupClick);
-            startupItem.Checked = StartupRegistration.IsEnabled();
-            menu.Items.Add(startupItem);
             menu.Items.Add(new ToolStripMenuItem("Сбросить статусы сессий", null, OnResetClick));
-            menu.Items.Add(new ToolStripMenuItem("Журнал событий", null, OnLogClick));
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(new ToolStripMenuItem("Настройки…", null, OnSettingsClick));
+            menu.Items.Add(new ToolStripMenuItem("Журнал", null, OnLogClick));
+            var startupItem = new ToolStripMenuItem("Запускать при входе в Windows", null, OnStartupClick);
+            startupItem.Checked = Autostart.IsEnabled();
+            menu.Items.Add(startupItem);
             menu.Items.Add(new ToolStripMenuItem("О приложении…", null, (s, a) => AboutForm.ShowSingle()));
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(new ToolStripMenuItem("Выход", null, OnExitClick));
@@ -286,7 +286,7 @@ namespace ClaudeGlow
             try
             {
                 ClaudeHooks.Install(settings.HookPort);
-                HookLog.Append("hooks installed into " + ClaudeHooks.SettingsPath);
+                AppLog.Append("hooks installed into " + ClaudeHooks.SettingsPath);
                 trayIcon.ShowBalloonTip(5000, AppTitle, "Хуки прописаны в " + ClaudeHooks.SettingsPath + ". Новые сессии Claude Code начнут слать события.", ToolTipIcon.Info);
             }
             catch (Exception error)
@@ -369,10 +369,8 @@ namespace ClaudeGlow
 
         private void OnStartupClick(object sender, EventArgs e)
         {
-            if (!StartupRegistration.TrySetEnabled(!StartupRegistration.IsEnabled()))
-            {
-                MessageBox.Show("Не удалось изменить автозапуск", AppTitle, MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
+            string problem = Autostart.IsEnabled() ? Autostart.Disable() : Autostart.Enable(Application.ExecutablePath);
+            if (problem != null) MessageBox.Show(problem, AppTitle, MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         private void OnResetClick(object sender, EventArgs e)
@@ -385,8 +383,8 @@ namespace ClaudeGlow
 
         private void OnLogClick(object sender, EventArgs e)
         {
-            if (!System.IO.File.Exists(HookLog.FilePath)) HookLog.Append("log created");
-            using (Process.Start("notepad.exe", "\"" + HookLog.FilePath + "\""))
+            if (!System.IO.File.Exists(AppLog.FilePath)) AppLog.Append("log created");
+            using (Process.Start("notepad.exe", "\"" + AppLog.FilePath + "\""))
             {
             }
         }
@@ -398,14 +396,14 @@ namespace ClaudeGlow
 
         private void OnHousekeepingTick(object sender, EventArgs e)
         {
-            if (lighting.RefreshDeviceList()) HookLog.Append("OpenRGB device list changed, reloaded");
+            if (lighting.RefreshDeviceList()) AppLog.Append("OpenRGB device list changed, reloaded");
             bool changed = tracker.Expire(DateTime.UtcNow, settings.WorkingTimeoutMinutes, settings.DoneTimeoutMinutes);
-            if (changed) HookLog.Append("timeouts -> " + tracker.TopStatus);
+            if (changed) AppLog.Append("timeouts -> " + tracker.TopStatus);
             if (changed) SessionStore.Save(tracker.Snapshot());
             UpdateLivenessTimer();
             if (IsDark() != dark)
             {
-                HookLog.Append(dark ? "lights on" : "lights off: no events for " + settings.DarkAfterMinutes + " min");
+                AppLog.Append(dark ? "lights on" : "lights off: no events for " + settings.DarkAfterMinutes + " min");
                 changed = true;
             }
             if (changed) Refresh();
@@ -414,10 +412,10 @@ namespace ClaudeGlow
         private void OnLivenessTick(object sender, EventArgs e)
         {
             bool changed = tracker.RemoveEndedProcesses();
-            if (changed) HookLog.Append("claude process ended -> " + tracker.TopStatus);
+            if (changed) AppLog.Append("claude process ended -> " + tracker.TopStatus);
             if (tracker.PromoteApprovedPermissions(DateTime.UtcNow))
             {
-                HookLog.Append("permission approved, tool started -> " + tracker.TopStatus);
+                AppLog.Append("permission approved, tool started -> " + tracker.TopStatus);
                 changed = true;
             }
             if (changed) SessionStore.Save(tracker.Snapshot());

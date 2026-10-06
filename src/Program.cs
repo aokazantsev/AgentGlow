@@ -10,7 +10,7 @@ namespace ClaudeGlow
         private static void Main()
         {
             bool isFirstInstance;
-            using (new Mutex(true, "ClaudeGlow.SingleInstance", out isFirstInstance))
+            using (new Mutex(true, AppIdentity.SingleInstanceMutex, out isFirstInstance))
             {
                 if (!isFirstInstance) return;
                 UserDataPaths.Ensure();

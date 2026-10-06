@@ -26,8 +26,8 @@ namespace ClaudeGlow
         {
             DialogResult answer = MessageBox.Show(
                 "Удалить " + AppIdentity.Name + "?" + Environment.NewLine + Environment.NewLine
-                + "Удалятся программа, настройки, журнал, автозапуск, запись в «Приложениях» и хуки ClaudeGlow из "
-                + ClaudeHooks.SettingsPath + " (остальные хуки и настройки Claude Code не трогаются).",
+                + "Удалятся программа, её настройки и данные, автозапуск и запись в «Приложениях». "
+                + UninstallProfile.ConfirmDetails,
                 Title, MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2);
             if (answer != DialogResult.Yes) return 1;
             string worker = Path.Combine(Path.GetTempPath(), AppIdentity.Name + "Uninstall-" + Guid.NewGuid().ToString("N") + ".exe");
@@ -40,18 +40,12 @@ namespace ClaudeGlow
         {
             var problems = new List<string>();
             if (!RunningApp.Stop()) problems.Add(AppIdentity.Name + " не закрылся");
-            try
-            {
-                ClaudeHooks.Uninstall();
-            }
-            catch (Exception error)
-            {
-                problems.Add("хуки в " + ClaudeHooks.SettingsPath + " не сняты: " + error.Message);
-            }
-            AutostartEntry.Remove();
+            UninstallProfile.Remove(problems);
+            string autostartProblem = Autostart.Disable();
+            if (autostartProblem != null) problems.Add(autostartProblem);
             UninstallRegistration.Unregister();
-            string dataProblem = DeleteWithRetries(UserDataPaths.Directory);
-            if (dataProblem != null) problems.Add("папка настроек " + dataProblem);
+            string dataProblem = DeleteWithRetries(AppIdentity.DataDirectory);
+            if (dataProblem != null) problems.Add("папка данных " + dataProblem);
             if (File.Exists(Path.Combine(installDirectory, AppIdentity.ExecutableName)))
             {
                 string folderProblem = DeleteWithRetries(installDirectory);

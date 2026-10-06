@@ -8,8 +8,8 @@ namespace ClaudeGlow
 {
     internal sealed class AboutForm : Form
     {
-        private const string GitHubUrl = "https://github.com/aokazantsev/ClaudeGlow";
-        private const string SiteUrl = "https://aokazantsev.ru/pets/claudeglow/";
+        private const string GitHubUrl = AppIdentity.GitHubUrl;
+        private const string SiteUrl = AppIdentity.SiteUrl;
         private const string ChangelogUrl = GitHubUrl + "/blob/main/CHANGELOG.md";
         private const string ReleasesUrl = GitHubUrl + "/releases/latest";
 
@@ -30,7 +30,7 @@ namespace ClaudeGlow
         private AboutForm()
         {
             Assembly assembly = Assembly.GetExecutingAssembly();
-            string product = Attribute<AssemblyProductAttribute>(assembly, a => a.Product, "ClaudeGlow");
+            string product = Attribute<AssemblyProductAttribute>(assembly, a => a.Product, AppIdentity.Name);
             string version = Attribute<AssemblyInformationalVersionAttribute>(assembly, a => a.InformationalVersion, assembly.GetName().Version.ToString());
             string description = Attribute<AssemblyDescriptionAttribute>(assembly, a => a.Description, "");
             string copyright = Attribute<AssemblyCopyrightAttribute>(assembly, a => a.Copyright, "");

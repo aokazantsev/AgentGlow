@@ -1,0 +1,6 @@
+ClaudeGlow.exe
+ClaudeGlow.exe.config
+Uninstall.exe
+README.md
+LICENSE
+CHANGELOG.md

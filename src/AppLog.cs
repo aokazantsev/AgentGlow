@@ -4,7 +4,7 @@ using System.Text;
 
 namespace ClaudeGlow
 {
-    internal static class HookLog
+    internal static class AppLog
     {
         private const long MaxBytes = 512 * 1024;
 
