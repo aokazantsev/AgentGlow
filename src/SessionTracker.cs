@@ -90,6 +90,7 @@ namespace ClaudeGlow
             if (hookEvent.EventName == "Stop") session.BackgroundTaskCount = hookEvent.BackgroundTaskCount;
             string before = Signature(session);
             ApplyAttention(session, hookEvent, nowUtc);
+            TrackActivity(session, hookEvent);
             GlowStatus next = NextWorkStatus(session.WorkStatus, hookEvent);
             if (next != session.WorkStatus)
             {
@@ -101,7 +102,7 @@ namespace ClaudeGlow
 
         private static void ApplyAttention(SessionState session, HookEvent hookEvent, DateTime nowUtc)
         {
-            string actor = hookEvent.AgentId ?? MainThread;
+            string actor = AttentionActor(session, hookEvent);
             switch (hookEvent.EventName)
             {
                 case "UserPromptSubmit":
@@ -125,6 +126,22 @@ namespace ClaudeGlow
                     if (attention != GlowStatus.Idle) session.Pending[actor] = new PendingAttention(attention, nowUtc);
                     break;
             }
+        }
+
+        private static string AttentionActor(SessionState session, HookEvent hookEvent)
+        {
+            if (hookEvent.AgentId != null) return hookEvent.AgentId;
+            bool fromBackgroundAgent = hookEvent.EventName == "Notification"
+                && session.WaitsForBackgroundTasks
+                && session.LastAgentId != null;
+            return fromBackgroundAgent ? session.LastAgentId : MainThread;
+        }
+
+        private static void TrackActivity(SessionState session, HookEvent hookEvent)
+        {
+            if (hookEvent.AgentId != null) session.LastAgentId = hookEvent.AgentId;
+            else if (hookEvent.EventName == "Stop") session.WaitsForBackgroundTasks = hookEvent.BackgroundTaskCount > 0;
+            else if (hookEvent.EventName != "Notification") session.WaitsForBackgroundTasks = false;
         }
 
         private static string Signature(SessionState session)

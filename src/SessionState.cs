@@ -11,6 +11,8 @@ namespace ClaudeGlow
         public DateTime LastEventUtc;
         public DateTime StatusSinceUtc;
         public int BackgroundTaskCount;
+        public bool WaitsForBackgroundTasks;
+        public string LastAgentId;
         public readonly Dictionary<string, PendingAttention> Pending = new Dictionary<string, PendingAttention>();
 
         public GlowStatus Status
