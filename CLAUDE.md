@@ -43,9 +43,8 @@
   `installer\setup\{SetupForm, Installation, InstallTarget, Payload, SetupOption, SetupField,
   InstallRequest, SetupProgram, SetupLog}.cs`, `installer\common\{UninstallRegistration, RunningApp}.cs`,
   `installer\uninstall\UninstallProgram.cs`, `src\{AboutForm, CrashReportConsent, CrashUploader}.cs`.
-  `build.cmd`, `build-installer.cmd`,
-  `installer\make-payload.ps1` отличаются только переменными в начале. Поменял общий файл — та же
-  правка в двух других проектах.
+  `build.cmd`, `build-installer.cmd`, `installer\make-payload.ps1` отличаются только переменными
+  в начале. Поменял общий файл — та же правка в двух других проектах.
 - **Своё у проекта:** `src\AppIdentity.cs` (имя, версия, ссылки, пути), `src\Autostart.cs` (задача
   Планировщика или ключ Run), `installer\setup\SetupProfile.cs` (тексты, поля, галочки, свои шаги),
   `installer\uninstall\UninstallProfile.cs`, `installer\payload.txt` (что ставится), `src\CrashReport.cs`
