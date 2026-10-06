@@ -42,12 +42,26 @@
 - **Общие файлы** — одинаковые во всех трёх, отличается только `namespace`:
   `installer\setup\{SetupForm, Installation, InstallTarget, Payload, SetupOption, SetupField,
   InstallRequest, SetupProgram, SetupLog}.cs`, `installer\common\{UninstallRegistration, RunningApp}.cs`,
-  `installer\uninstall\UninstallProgram.cs`, `src\AboutForm.cs`. `build.cmd`, `build-installer.cmd`,
+  `installer\uninstall\UninstallProgram.cs`, `src\{AboutForm, CrashReportConsent, CrashUploader}.cs`.
+  `build.cmd`, `build-installer.cmd`,
   `installer\make-payload.ps1` отличаются только переменными в начале. Поменял общий файл — та же
   правка в двух других проектах.
 - **Своё у проекта:** `src\AppIdentity.cs` (имя, версия, ссылки, пути), `src\Autostart.cs` (задача
   Планировщика или ключ Run), `installer\setup\SetupProfile.cs` (тексты, поля, галочки, свои шаги),
-  `installer\uninstall\UninstallProfile.cs`, `installer\payload.txt` (что ставится).
+  `installer\uninstall\UninstallProfile.cs`, `installer\payload.txt` (что ставится), `src\CrashReport.cs`
+  (перехват падений: куда пишет текст ошибки — у каждого свой журнал).
+- **Надёжность:**
+  - журнал `log.txt` пишет запуск (версия, пользователь, Windows, настройки), шаги запуска и причину
+    каждого отказа — по нему «не завелось» разбирается без догадок;
+  - `Program.cs` перехватывает падения (`AppDomain.UnhandledException` с
+    `[HandleProcessCorruptedStateExceptions]`, `Application.ThreadException`), `CrashReport` пишет
+    стек в журнал и показывает окно; отчёт на `AppIdentity.SiteUrl + "crash-report"` — только по
+    согласию из установщика (галочка по умолчанию выключена), один раз, без повторов;
+  - опасные системные вызовы (COM брандмауэра, драйверы, нативные DLL) не должны молча убивать
+    программу: отдельный процесс с таймаутом или перехват плюс метка «прошлый запуск умер здесь»;
+  - сбои окружения программа по возможности лечит сама; проблема и починка видны на значке в трее
+    (метки ошибки и починки), в подсказке, меню и журнале. Свои проблемы — только в трее и
+    уведомлениях, не в основном результате программы.
 - **Меню трея:** блок состояния; действия приложения; «Настройки…», «Журнал» (если есть),
   «Запускать при входе в Windows», «О приложении…»; «Выход».
 - **Установщик:** права администратора, выбор папки (по умолчанию `C:\Program Files\<Имя>`), галочка
