@@ -26,6 +26,7 @@ namespace ClaudeGlow
             string target = request.TargetDirectory;
             string executable = Path.Combine(target, AppIdentity.ExecutableName);
 
+            if (RunningApp.IsUninstalling()) throw new InvalidOperationException("Сейчас идёт удаление " + AppIdentity.Name + ". Дождись его окончания и повтори установку.");
             report(0, "Останавливаю запущенный " + AppIdentity.Name + "…");
             if (!RunningApp.Stop()) throw new InvalidOperationException(AppIdentity.Name + " не закрывается. Закрой его в трее и повтори установку.");
 

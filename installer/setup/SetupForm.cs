@@ -133,6 +133,12 @@ namespace ClaudeGlow
 
         private void StartInstall()
         {
+            if (RunningApp.IsUninstalling())
+            {
+                MessageBox.Show(this, "Сейчас идёт удаление " + AppIdentity.Name + ". Заверши его — ответь в окне удаления и дождись сообщения о результате, — затем нажми «Установить» ещё раз.",
+                    Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             string problem = InstallTarget.Validate(folderBox.Text);
             if (problem != null)
             {
