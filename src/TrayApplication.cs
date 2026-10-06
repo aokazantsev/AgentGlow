@@ -325,6 +325,7 @@ namespace ClaudeGlow
             var startupItem = new ToolStripMenuItem("Запускать при входе в Windows", null, OnStartupClick);
             startupItem.Checked = Autostart.IsEnabled();
             menu.Items.Add(startupItem);
+            menu.Items.Add(new ToolStripMenuItem("Проверить обновление…", null, (s, a) => UpdateForm.ShowSingle()));
             menu.Items.Add(new ToolStripMenuItem("О приложении…", null, (s, a) => AboutForm.ShowSingle()));
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(new ToolStripMenuItem("Выход", null, OnExitClick));

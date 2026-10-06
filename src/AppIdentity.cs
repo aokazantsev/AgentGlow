@@ -6,7 +6,7 @@ namespace ClaudeGlow
     internal static class AppIdentity
     {
         public const string Name = "ClaudeGlow";
-        public const string Version = "1.8";
+        public const string Version = "1.9";
         public const string ExecutableName = "ClaudeGlow.exe";
         public const string ProcessName = "ClaudeGlow";
         public const string UninstallerName = "Uninstall.exe";

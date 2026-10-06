@@ -28,10 +28,20 @@ namespace ClaudeGlow
             return new List<SetupField>();
         }
 
+        private const string ResetSettingsKey = "resetSettings";
+
         public static List<SetupOption> Options()
         {
             return new List<SetupOption>
             {
+                new SetupOption
+                {
+                    Key = ResetSettingsKey,
+                    Text = "Сбросить настройки",
+                    Hint = "Эффекты и цвета статусов, устройства, таймауты, порт хуков и автозапуск OpenRGB вернутся к стандартным. "
+                        + "Статусы тредов и журнал сохранятся. Помогает, если сбой вызван настройками.",
+                    Checked = false
+                },
                 new SetupOption
                 {
                     Key = HooksKey,
@@ -62,6 +72,12 @@ namespace ClaudeGlow
 
         public static void BeforeExtract(InstallRequest request, Action<int, string> report, List<string> notes)
         {
+            if (request.Has(ResetSettingsKey))
+            {
+                string settingsPath = Path.Combine(AppIdentity.DataDirectory, "settings.txt");
+                if (File.Exists(settingsPath)) File.Delete(settingsPath);
+                SetupLog.Append("settings reset");
+            }
             CrashReportConsent.Set(request.Has(CrashReportConsent.OptionKey));
             SetupLog.Append("crash reports: " + request.Has(CrashReportConsent.OptionKey));
         }
