@@ -275,6 +275,7 @@ namespace ClaudeGlow
             menu.Items.Add(startupItem);
             menu.Items.Add(new ToolStripMenuItem("Сбросить статусы сессий", null, OnResetClick));
             menu.Items.Add(new ToolStripMenuItem("Журнал событий", null, OnLogClick));
+            menu.Items.Add(new ToolStripMenuItem("О приложении…", null, (s, a) => AboutForm.ShowSingle()));
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(new ToolStripMenuItem("Выход", null, OnExitClick));
             e.Cancel = false;
