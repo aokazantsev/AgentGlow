@@ -63,6 +63,10 @@ namespace ClaudeGlow
             {
                 return false;
             }
+            catch (UnauthorizedAccessException)
+            {
+                return false;
+            }
             catch (FormatException)
             {
                 return false;

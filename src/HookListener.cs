@@ -82,9 +82,16 @@ namespace ClaudeGlow
             BeginAccept();
             using (client)
             {
-                ProcessIdentity claudeProcess;
-                string body = TryReceive(client, out claudeProcess);
-                if (body != null) onBody(body, claudeProcess);
+                try
+                {
+                    ProcessIdentity claudeProcess;
+                    string body = TryReceive(client, out claudeProcess);
+                    if (body != null) onBody(body, claudeProcess);
+                }
+                catch (Exception error)
+                {
+                    AppLog.Append("hook request failed: " + error);
+                }
             }
         }
 

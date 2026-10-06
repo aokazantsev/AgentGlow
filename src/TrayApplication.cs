@@ -38,18 +38,24 @@ namespace ClaudeGlow
         private StatusEffect previewEffect;
         private bool paused;
         private bool dark;
+        private bool? loggedOpenRgbConnected;
         private DateTime lastActivityUtc = DateTime.UtcNow;
         private DateTime lastLaunchAttemptUtc = DateTime.MinValue;
         private SettingsForm settingsForm;
 
         public TrayApplication()
         {
+            AppLog.Append("start " + AppIdentity.Version + ", user=" + Environment.UserDomainName + "\\" + Environment.UserName
+                + ", os=" + Environment.OSVersion.VersionString + ", exe=" + Application.ExecutablePath);
             bool firstRun = !AppSettings.FileExists;
             settings = AppSettings.Load();
             if (firstRun)
             {
                 settings.TrySave();
             }
+            AppLog.Append("settings: first run=" + firstRun + ", hook port=" + settings.HookPort
+                + ", devices=" + (settings.DeviceNames == null ? "all" : string.Join("|", settings.DeviceNames.ToArray()))
+                + ", launch OpenRGB=" + settings.LaunchOpenRgb);
             invoker.CreateControl();
             trayIcon.ContextMenuStrip = new ContextMenuStrip();
             trayIcon.ContextMenuStrip.Opening += OnMenuOpening;
@@ -75,6 +81,7 @@ namespace ClaudeGlow
             UpdateLivenessTimer();
             lighting.Configure(settings.DeviceNames, settings.FixedDeviceNames, settings.FixedEffect);
             StartListener();
+            AppLog.Append("hooks in Claude Code settings: " + (ClaudeHooks.AreInstalled(settings.HookPort) ? "installed" : "not installed"));
             Connect();
             Refresh();
         }
@@ -108,6 +115,7 @@ namespace ClaudeGlow
             try
             {
                 listener.Start();
+                AppLog.Append("hook listener on 127.0.0.1:" + settings.HookPort);
             }
             catch (SocketException exception)
             {
@@ -153,7 +161,9 @@ namespace ClaudeGlow
 
         private void Connect()
         {
-            if (lighting.TryConnect())
+            bool connected = lighting.TryConnect();
+            LogOpenRgbState();
+            if (connected)
             {
                 reconnectTimer.Stop();
                 return;
@@ -394,9 +404,20 @@ namespace ClaudeGlow
             ExitThread();
         }
 
+        private void LogOpenRgbState()
+        {
+            bool connected = lighting.IsConnected;
+            if (loggedOpenRgbConnected.HasValue && loggedOpenRgbConnected.Value == connected) return;
+            loggedOpenRgbConnected = connected;
+            AppLog.Append(connected
+                ? "OpenRGB connected, devices: " + lighting.DeviceCount
+                : "OpenRGB not connected: " + (lighting.LastError ?? "unknown reason"));
+        }
+
         private void OnHousekeepingTick(object sender, EventArgs e)
         {
             if (lighting.RefreshDeviceList()) AppLog.Append("OpenRGB device list changed, reloaded");
+            LogOpenRgbState();
             bool changed = tracker.Expire(DateTime.UtcNow, settings.WorkingTimeoutMinutes, settings.DoneTimeoutMinutes);
             if (changed) AppLog.Append("timeouts -> " + tracker.TopStatus);
             if (changed) SessionStore.Save(tracker.Snapshot());

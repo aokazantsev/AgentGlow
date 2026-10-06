@@ -29,6 +29,13 @@ namespace ClaudeGlow
             get { return client != null; }
         }
 
+        public string LastError { get; private set; }
+
+        public int DeviceCount
+        {
+            get { return controllers == null ? 0 : controllers.Count; }
+        }
+
         public bool IsAnimating
         {
             get { return client != null && animation != null; }
@@ -105,22 +112,20 @@ namespace ClaudeGlow
                 candidate.Connect();
                 controllers = candidate.LoadControllers();
             }
-            catch (IOException)
+            catch (Exception error)
             {
-                candidate.Dispose();
-                return false;
-            }
-            catch (SocketException)
-            {
+                LastError = error.GetType().Name + ": " + error.Message;
                 candidate.Dispose();
                 return false;
             }
             client = candidate;
             if (Targets().Count == 0)
             {
+                LastError = "ни одно из выбранных устройств не найдено в OpenRGB";
                 Drop();
                 return false;
             }
+            LastError = null;
             foreach (RgbController controller in controllers)
             {
                 if (!originals.ContainsKey(controller.Name)) originals[controller.Name] = OriginalLighting.Capture(controller);
