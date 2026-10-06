@@ -34,6 +34,7 @@ namespace ClaudeGlow
         private readonly Timer animationTimer = new Timer();
         private readonly Timer repairBlinkTimer = new Timer();
         private bool repairBlinkOn;
+        private bool hooksInstalled = true;
         private const int RepairBlinkIntervalMs = 500;
         private const string RepairingText = "перезапускаю службу…";
         private readonly Stopwatch animationClock = new Stopwatch();
@@ -99,7 +100,8 @@ namespace ClaudeGlow
             UpdateLivenessTimer();
             lighting.Configure(settings.DeviceNames, settings.FixedDeviceNames, settings.FixedEffect);
             StartListener();
-            AppLog.Append("hooks in Claude Code settings: " + (ClaudeHooks.AreInstalled(settings.HookPort) ? "installed" : "not installed"));
+            hooksInstalled = ClaudeHooks.AreInstalled(settings.HookPort);
+            AppLog.Append("hooks in Claude Code settings: " + (hooksInstalled ? "installed" : "not installed"));
             Connect();
             Refresh();
         }
@@ -267,9 +269,10 @@ namespace ClaudeGlow
         {
             Color left = IconColor(tracker.TopStatus);
             Color right = IsSplit() ? IconColor(GlowStatus.Working) : left;
-            trayIcon.Icon = StatusIconPainter.Paint(left, right, openRgbRestartRunning ? repairBlinkOn : lighting.IsConnected);
+            trayIcon.Icon = StatusIconPainter.Paint(left, right, CurrentBadge());
             string text = AppTitle + ": " + StatusText();
-            if (!lighting.IsConnected) text += "\nOpenRGB: " + OpenRgbText();
+            string problem = AppProblem();
+            if (problem != null) text += "\n" + problem;
             trayIcon.Text = text.Length > MaxTrayTextLength ? text.Substring(0, MaxTrayTextLength) : text;
         }
 
@@ -285,7 +288,13 @@ namespace ClaudeGlow
                 restartItem.Enabled = !openRgbRestartRunning;
                 menu.Items.Add(restartItem);
             }
-            if (ClaudeHooks.AreInstalled(settings.HookPort))
+            bool hooksNow = ClaudeHooks.AreInstalled(settings.HookPort);
+            if (hooksNow != hooksInstalled)
+            {
+                hooksInstalled = hooksNow;
+                UpdateTrayIcon();
+            }
+            if (hooksNow)
             {
                 menu.Items.Add(Disabled("Хуки Claude Code: подключены"));
             }
@@ -321,6 +330,8 @@ namespace ClaudeGlow
             try
             {
                 ClaudeHooks.Install(settings.HookPort);
+                hooksInstalled = true;
+                UpdateTrayIcon();
                 AppLog.Append("hooks installed into " + ClaudeHooks.SettingsPath);
                 trayIcon.ShowBalloonTip(5000, AppTitle, "Хуки прописаны в " + ClaudeHooks.SettingsPath + ". Новые сессии Claude Code начнут слать события.", ToolTipIcon.Info);
             }
@@ -443,6 +454,20 @@ namespace ClaudeGlow
         private void OnRestartOpenRgbClick(object sender, EventArgs e)
         {
             StartOpenRgbRestart(OpenRgbService.HasRestartTask());
+        }
+
+        private TrayBadge CurrentBadge()
+        {
+            if (openRgbRestartRunning) return repairBlinkOn ? TrayBadge.Repairing : TrayBadge.RepairingHidden;
+            return AppProblem() == null ? TrayBadge.None : TrayBadge.Error;
+        }
+
+        private string AppProblem()
+        {
+            if (!lighting.IsConnected) return "OpenRGB: " + OpenRgbText();
+            if (listener == null) return "порт " + settings.HookPort + " занят — события Claude не приходят";
+            if (!hooksInstalled) return "хуки Claude Code не подключены";
+            return null;
         }
 
         private string OpenRgbText()
