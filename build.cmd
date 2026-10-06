@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 set APP=ClaudeGlow
-set REFS=/r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll /r:System.ServiceProcess.dll
+set REFS=/r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll /r:System.ServiceProcess.dll /r:System.Management.dll
 set EXTRA=
 
 if exist %APP%.exe del /f /q %APP%.exe >nul 2>&1

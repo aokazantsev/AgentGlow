@@ -3,10 +3,10 @@ setlocal
 cd /d "%~dp0"
 set APP=ClaudeGlow
 set CSC="%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
-set REFS=/r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll /r:System.ServiceProcess.dll
+set REFS=/r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll /r:System.ServiceProcess.dll /r:System.Management.dll
 set SHARED=src\AppIdentity.cs src\Autostart.cs
-set UNINSTALL_EXTRA=src\ClaudeHooks.cs src\JsonText.cs src\OpenRgbService.cs
-set SETUP_EXTRA=src\ClaudeHooks.cs src\JsonText.cs src\CrashReportConsent.cs src\OpenRgbService.cs
+set UNINSTALL_EXTRA=src\ClaudeHooks.cs src\JsonText.cs src\OpenRgbService.cs src\AppLog.cs src\UserDataPaths.cs
+set SETUP_EXTRA=src\ClaudeHooks.cs src\JsonText.cs src\CrashReportConsent.cs src\OpenRgbService.cs src\AppLog.cs src\UserDataPaths.cs
 set PREBUILD=
 set PAYLOAD=installer\obj\payload.zip
 set OUTDIR=%~dp0dist

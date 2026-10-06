@@ -32,6 +32,10 @@ namespace ClaudeGlow
         private readonly Timer previewTimer = new Timer();
         private readonly Timer livenessTimer = new Timer();
         private readonly Timer animationTimer = new Timer();
+        private readonly Timer repairBlinkTimer = new Timer();
+        private bool repairBlinkOn;
+        private const int RepairBlinkIntervalMs = 500;
+        private const string RepairingText = "перезапускаю службу…";
         private readonly Stopwatch animationClock = new Stopwatch();
         private AppSettings settings;
         private HookListener listener;
@@ -67,6 +71,12 @@ namespace ClaudeGlow
             trayIcon.ContextMenuStrip.Opening += OnMenuOpening;
             trayIcon.MouseDoubleClick += OnTrayDoubleClick;
             trayIcon.BalloonTipClicked += OnBalloonClicked;
+            repairBlinkTimer.Interval = RepairBlinkIntervalMs;
+            repairBlinkTimer.Tick += (sender, e) =>
+            {
+                repairBlinkOn = !repairBlinkOn;
+                UpdateTrayIcon();
+            };
             trayIcon.BalloonTipClosed += (sender, e) => restartOnBalloonClick = false;
             trayIcon.Visible = true;
 
@@ -102,6 +112,7 @@ namespace ClaudeGlow
             previewTimer.Dispose();
             livenessTimer.Dispose();
             animationTimer.Dispose();
+            repairBlinkTimer.Dispose();
             if (listener != null) listener.Dispose();
             if (settingsForm != null) settingsForm.Close();
             lighting.RestoreOriginals();
@@ -256,9 +267,9 @@ namespace ClaudeGlow
         {
             Color left = IconColor(tracker.TopStatus);
             Color right = IsSplit() ? IconColor(GlowStatus.Working) : left;
-            trayIcon.Icon = StatusIconPainter.Paint(left, right, lighting.IsConnected);
+            trayIcon.Icon = StatusIconPainter.Paint(left, right, openRgbRestartRunning ? repairBlinkOn : lighting.IsConnected);
             string text = AppTitle + ": " + StatusText();
-            if (!lighting.IsConnected) text += "\nOpenRGB: " + lighting.ConnectionText;
+            if (!lighting.IsConnected) text += "\nOpenRGB: " + OpenRgbText();
             trayIcon.Text = text.Length > MaxTrayTextLength ? text.Substring(0, MaxTrayTextLength) : text;
         }
 
@@ -267,7 +278,7 @@ namespace ClaudeGlow
             ContextMenuStrip menu = trayIcon.ContextMenuStrip;
             menu.Items.Clear();
             menu.Items.Add(Disabled("Статус: " + StatusText()));
-            menu.Items.Add(Disabled("OpenRGB: " + lighting.ConnectionText));
+            menu.Items.Add(Disabled("OpenRGB: " + OpenRgbText()));
             if (!lighting.IsConnected && OpenRgbService.IsInstalled())
             {
                 var restartItem = new ToolStripMenuItem("Перезапустить службу OpenRGB", null, OnRestartOpenRgbClick);
@@ -434,14 +445,22 @@ namespace ClaudeGlow
             StartOpenRgbRestart(OpenRgbService.HasRestartTask());
         }
 
+        private string OpenRgbText()
+        {
+            return openRgbRestartRunning ? RepairingText : lighting.ConnectionText;
+        }
+
         private void StartOpenRgbRestart(bool useTask)
         {
             if (openRgbRestartRunning) return;
             openRgbRestartRunning = true;
+            repairBlinkOn = false;
+            repairBlinkTimer.Start();
+            UpdateTrayIcon();
             AppLog.Append("OpenRGB service restart requested, " + (useTask ? "via scheduled task" : "via UAC"));
             System.Threading.ThreadPool.QueueUserWorkItem(state =>
             {
-                string problem = useTask ? OpenRgbService.RestartWithTask() : OpenRgbService.RestartElevated();
+                string problem = useTask ? OpenRgbService.RestartWithTask() : OpenRgbService.RestartElevated(Application.ExecutablePath);
                 try
                 {
                     invoker.BeginInvoke(new Action(() => OnOpenRgbRestarted(problem)));
@@ -455,14 +474,20 @@ namespace ClaudeGlow
         private void OnOpenRgbRestarted(string problem)
         {
             openRgbRestartRunning = false;
+            repairBlinkTimer.Stop();
             AppLog.Append(problem == null ? "OpenRGB service restarted" : "OpenRGB service restart failed: " + problem);
             if (problem != null)
             {
+                UpdateTrayIcon();
                 trayIcon.ShowBalloonTip(5000, AppTitle, "Службу OpenRGB перезапустить не удалось: " + problem, ToolTipIcon.Warning);
                 return;
             }
             Connect();
             if (lighting.IsConnected) Refresh();
+            UpdateTrayIcon();
+            trayIcon.ShowBalloonTip(5000, AppTitle, lighting.IsConnected
+                ? "Служба OpenRGB перезапущена, подсветка снова работает."
+                : "Служба OpenRGB перезапущена, ClaudeGlow подключается к ней.", ToolTipIcon.Info);
         }
 
         private void OnHousekeepingTick(object sender, EventArgs e)

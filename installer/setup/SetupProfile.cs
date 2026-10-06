@@ -72,7 +72,7 @@ namespace ClaudeGlow
             if (OpenRgbService.IsInstalled())
             {
                 report(82, "Задача перезапуска OpenRGB…");
-                string problem = OpenRgbService.InstallRestartTask();
+                string problem = OpenRgbService.InstallRestartTask(Path.Combine(request.TargetDirectory, AppIdentity.ExecutableName));
                 SetupLog.Append("openrgb restart task: " + (problem ?? "installed"));
                 if (problem != null) notes.Add("Задачу перезапуска зависшего OpenRGB создать не удалось (" + problem + "): ClaudeGlow будет просить права администратора.");
             }

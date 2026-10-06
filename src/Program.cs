@@ -9,20 +9,26 @@ namespace ClaudeGlow
     internal static class Program
     {
         [STAThread]
-        private static void Main()
+        private static int Main(string[] args)
         {
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+            if (args.Length > 0 && args[0] == OpenRgbService.RestartArgument)
+            {
+                UserDataPaths.Ensure();
+                return OpenRgbService.RestartNow();
+            }
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             Application.ThreadException += OnThreadException;
             bool isFirstInstance;
             using (new Mutex(true, AppIdentity.SingleInstanceMutex, out isFirstInstance))
             {
-                if (!isFirstInstance) return;
+                if (!isFirstInstance) return 0;
                 UserDataPaths.Ensure();
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
                 Application.Run(new TrayApplication());
             }
+            return 0;
         }
 
         private static void OnThreadException(object sender, ThreadExceptionEventArgs e)
