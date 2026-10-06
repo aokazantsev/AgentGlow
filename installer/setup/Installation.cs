@@ -25,6 +25,8 @@ namespace ClaudeGlow
         {
             string target = request.TargetDirectory;
             string executable = Path.Combine(target, AppIdentity.ExecutableName);
+            SetupLog.Start();
+            SetupLog.Append("target=" + target + ", autostart=" + request.EnablesAutostart + ", options=" + string.Join(",", new List<string>(request.CheckedOptions).ToArray()));
 
             if (RunningApp.IsUninstalling()) throw new InvalidOperationException("Сейчас идёт удаление " + AppIdentity.Name + ". Дождись его окончания и повтори установку.");
             report(0, "Останавливаю запущенный " + AppIdentity.Name + "…");
@@ -37,13 +39,16 @@ namespace ClaudeGlow
 
             report(90, "Запись в «Приложения» Windows…");
             UninstallRegistration.Register(target, size);
+            SetupLog.Append("registered in Apps, size=" + size);
 
             report(94, "Автозапуск…");
             string autostartProblem = request.EnablesAutostart ? Autostart.Enable(executable) : Autostart.Disable();
             if (autostartProblem != null) notes.Add(autostartProblem);
+            SetupLog.Append("autostart " + (request.EnablesAutostart ? "enable" : "disable") + ": problem=" + (autostartProblem ?? "none") + ", enabled now=" + Autostart.IsEnabled());
 
             report(97, "Запуск…");
             SetupProfile.Launch(executable);
+            SetupLog.Append("launched " + executable);
             report(100, "Готово.");
         }
     }

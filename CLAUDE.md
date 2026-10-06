@@ -41,7 +41,7 @@
 
 - **Общие файлы** — одинаковые во всех трёх, отличается только `namespace`:
   `installer\setup\{SetupForm, Installation, InstallTarget, Payload, SetupOption, SetupField,
-  InstallRequest, SetupProgram}.cs`, `installer\common\{UninstallRegistration, RunningApp}.cs`,
+  InstallRequest, SetupProgram, SetupLog}.cs`, `installer\common\{UninstallRegistration, RunningApp}.cs`,
   `installer\uninstall\UninstallProgram.cs`, `src\AboutForm.cs`. `build.cmd`, `build-installer.cmd`,
   `installer\make-payload.ps1` отличаются только переменными в начале. Поменял общий файл — та же
   правка в двух других проектах.
