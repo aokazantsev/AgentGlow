@@ -156,7 +156,6 @@ namespace ClaudeGlow
             try
             {
                 if (client.IsClosedByServer()) throw new IOException("OpenRGB закрыл соединение");
-                ServiceStatusCheck();
                 client.Ping();
                 return true;
             }
@@ -166,15 +165,6 @@ namespace ClaudeGlow
                 LastError = (NotResponding ? "OpenRGB перестал отвечать — " : "") + error.GetType().Name + ": " + error.Message;
                 Drop();
                 return false;
-            }
-        }
-
-        private static void ServiceStatusCheck()
-        {
-            System.ServiceProcess.ServiceControllerStatus? status = OpenRgbService.Status();
-            if (status.HasValue && status.Value != System.ServiceProcess.ServiceControllerStatus.Running)
-            {
-                throw new IOException("служба OpenRGB в состоянии " + status.Value);
             }
         }
 

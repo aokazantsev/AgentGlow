@@ -195,7 +195,7 @@ namespace ClaudeGlow
                 reconnectTimer.Stop();
                 return;
             }
-            if (settings.LaunchOpenRgb && DateTime.UtcNow - lastLaunchAttemptUtc > LaunchRetryInterval)
+            if (settings.LaunchOpenRgb && !OpenRgbService.IsInstalled() && DateTime.UtcNow - lastLaunchAttemptUtc > LaunchRetryInterval)
             {
                 lastLaunchAttemptUtc = DateTime.UtcNow;
                 if (OpenRgbLauncher.TryStart(settings.OpenRgbPath)) AppLog.Append("OpenRGB started");
