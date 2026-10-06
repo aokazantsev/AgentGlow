@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.ServiceProcess;
+using System.Text;
 
 namespace ClaudeGlow
 {
@@ -10,6 +11,19 @@ namespace ClaudeGlow
         private const string ServiceName = "OpenRGB";
         private const int RestartTimeoutMs = 60 * 1000;
         private const int CancelledByUser = 1223;
+
+        private const string RestartScript =
+            "$ErrorActionPreference = 'Stop'\n"
+            + "$name = '" + ServiceName + "'\n"
+            + "Stop-Service -Name $name -Force -NoWait -ErrorAction SilentlyContinue\n"
+            + "$service = Get-Service -Name $name\n"
+            + "try { $service.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(10)) }\n"
+            + "catch {\n"
+            + "  $processId = (Get-CimInstance Win32_Service -Filter \"Name='$name'\").ProcessId\n"
+            + "  if ($processId) { Stop-Process -Id $processId -Force }\n"
+            + "  $service.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(15))\n"
+            + "}\n"
+            + "Start-Service -Name $name\n";
 
         public static bool IsInstalled()
         {
@@ -32,7 +46,8 @@ namespace ClaudeGlow
 
         public static string RestartElevated()
         {
-            var start = new ProcessStartInfo("powershell.exe", "-NoProfile -NonInteractive -WindowStyle Hidden -Command \"Restart-Service -Name " + ServiceName + " -Force\"")
+            string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(RestartScript));
+            var start = new ProcessStartInfo("powershell.exe", "-NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand " + encoded)
             {
                 UseShellExecute = true,
                 Verb = "runas",
