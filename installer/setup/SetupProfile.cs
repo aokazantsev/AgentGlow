@@ -69,6 +69,13 @@ namespace ClaudeGlow
         public static void AfterExtract(InstallRequest request, Action<int, string> report, List<string> notes)
         {
             RemoveLegacyInstall(request.TargetDirectory, notes);
+            if (OpenRgbService.IsInstalled())
+            {
+                report(82, "Задача перезапуска OpenRGB…");
+                string problem = OpenRgbService.InstallRestartTask();
+                SetupLog.Append("openrgb restart task: " + (problem ?? "installed"));
+                if (problem != null) notes.Add("Задачу перезапуска зависшего OpenRGB создать не удалось (" + problem + "): ClaudeGlow будет просить права администратора.");
+            }
             if (!request.Has(HooksKey)) return;
             report(85, "Хуки Claude Code…");
             int port = ConfiguredHookPort();

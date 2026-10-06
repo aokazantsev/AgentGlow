@@ -18,6 +18,8 @@ namespace ClaudeGlow
             {
                 problems.Add("хуки в " + ClaudeHooks.SettingsPath + " не сняты: " + error.Message);
             }
+            string taskProblem = OpenRgbService.RemoveRestartTask();
+            if (taskProblem != null) problems.Add("задача «" + OpenRgbService.RestartTaskName + "» не удалена: " + taskProblem);
         }
     }
 }

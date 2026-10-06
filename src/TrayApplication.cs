@@ -40,6 +40,11 @@ namespace ClaudeGlow
         private bool dark;
         private string loggedOpenRgbState;
         private bool openRgbRestartRunning;
+        private DateTime? openRgbUnhealthySinceUtc;
+        private DateTime lastOpenRgbAutoRestartUtc = DateTime.MinValue;
+        private bool restartOnBalloonClick;
+        private static readonly TimeSpan OpenRgbAutoRestartAfter = TimeSpan.FromSeconds(30);
+        private static readonly TimeSpan OpenRgbAutoRestartCooldown = TimeSpan.FromMinutes(10);
         private DateTime lastActivityUtc = DateTime.UtcNow;
         private DateTime lastLaunchAttemptUtc = DateTime.MinValue;
         private SettingsForm settingsForm;
@@ -61,6 +66,8 @@ namespace ClaudeGlow
             trayIcon.ContextMenuStrip = new ContextMenuStrip();
             trayIcon.ContextMenuStrip.Opening += OnMenuOpening;
             trayIcon.MouseDoubleClick += OnTrayDoubleClick;
+            trayIcon.BalloonTipClicked += OnBalloonClicked;
+            trayIcon.BalloonTipClosed += (sender, e) => restartOnBalloonClick = false;
             trayIcon.Visible = true;
 
             housekeepingTimer.Interval = HousekeepingIntervalMs;
@@ -424,12 +431,17 @@ namespace ClaudeGlow
 
         private void OnRestartOpenRgbClick(object sender, EventArgs e)
         {
+            StartOpenRgbRestart(OpenRgbService.HasRestartTask());
+        }
+
+        private void StartOpenRgbRestart(bool useTask)
+        {
             if (openRgbRestartRunning) return;
             openRgbRestartRunning = true;
-            AppLog.Append("OpenRGB service restart requested");
+            AppLog.Append("OpenRGB service restart requested, " + (useTask ? "via scheduled task" : "via UAC"));
             System.Threading.ThreadPool.QueueUserWorkItem(state =>
             {
-                string problem = OpenRgbService.RestartElevated();
+                string problem = useTask ? OpenRgbService.RestartWithTask() : OpenRgbService.RestartElevated();
                 try
                 {
                     invoker.BeginInvoke(new Action(() => OnOpenRgbRestarted(problem)));
@@ -493,6 +505,45 @@ namespace ClaudeGlow
             Connect();
             if (lighting.IsConnected) Refresh();
             else UpdateAnimationTimer();
+            CheckOpenRgbHealth();
+        }
+
+        private void CheckOpenRgbHealth()
+        {
+            bool unhealthy = false;
+            if (!lighting.IsConnected && !openRgbRestartRunning)
+            {
+                System.ServiceProcess.ServiceControllerStatus? status = OpenRgbService.Status();
+                unhealthy = status.HasValue && (lighting.NotResponding || status.Value != System.ServiceProcess.ServiceControllerStatus.Running);
+            }
+            if (!unhealthy)
+            {
+                openRgbUnhealthySinceUtc = null;
+                return;
+            }
+            DateTime now = DateTime.UtcNow;
+            if (!openRgbUnhealthySinceUtc.HasValue) openRgbUnhealthySinceUtc = now;
+            if (now - openRgbUnhealthySinceUtc.Value < OpenRgbAutoRestartAfter) return;
+            if (now - lastOpenRgbAutoRestartUtc < OpenRgbAutoRestartCooldown) return;
+            lastOpenRgbAutoRestartUtc = now;
+            if (OpenRgbService.HasRestartTask())
+            {
+                AppLog.Append("OpenRGB unhealthy for " + (int)(now - openRgbUnhealthySinceUtc.Value).TotalSeconds + " s (" + lighting.ConnectionText
+                    + ", service " + OpenRgbService.Status() + ") — restarting service automatically");
+                trayIcon.ShowBalloonTip(5000, AppTitle, "OpenRGB перестал отвечать — перезапускаю его службу.", ToolTipIcon.Info);
+                StartOpenRgbRestart(true);
+                return;
+            }
+            AppLog.Append("OpenRGB unhealthy, no restart task — asking user");
+            restartOnBalloonClick = true;
+            trayIcon.ShowBalloonTip(10000, AppTitle, "OpenRGB не отвечает. Нажми, чтобы перезапустить его службу (нужны права администратора).", ToolTipIcon.Warning);
+        }
+
+        private void OnBalloonClicked(object sender, EventArgs e)
+        {
+            if (!restartOnBalloonClick) return;
+            restartOnBalloonClick = false;
+            StartOpenRgbRestart(false);
         }
 
         private static string ShortId(string sessionId)
