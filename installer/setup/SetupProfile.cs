@@ -38,12 +38,32 @@ namespace ClaudeGlow
                     Text = "Прописать хуки в настройки Claude Code",
                     Hint = "В ~\\.claude\\settings.json добавляются только хуки ClaudeGlow, копия прежнего файла остаётся рядом.",
                     Checked = true
+                },
+                new SetupOption
+                {
+                    Key = CrashReportConsent.OptionKey,
+                    Text = "Отправлять автору отчёты о сбоях",
+                    Hint = "В отчёт попадает журнал программы, а в нём — путь к настройкам Claude Code с именем пользователя Windows "
+                        + "и названия RGB-устройств. Не включай, если это запрещают правила твоей компании.",
+                    DetailsTitle = "Что уходит в отчёте",
+                    Details = "Отчёт уходит один раз — при падении программы — на aokazantsev.ru (сервер в России), "
+                        + "без повторных попыток:\n"
+                        + "• версия программы, Windows и .NET;\n"
+                        + "• текст ошибки;\n"
+                        + "• последние 100 КБ журнала %LOCALAPPDATA%\\ClaudeGlow\\log.txt: названия событий и инструментов Claude Code, "
+                        + "короткие номера сессий и процессов, путь к настройкам Claude Code, названия RGB-устройств;\n"
+                        + "• IP-адрес, с которого пришёл отчёт.\n"
+                        + "Тексты запросов, ответы и код Claude в журнал не попадают. Отчёты видит только автор, хранятся последние 50 МБ. "
+                        + "Изменить выбор — переустановить программу.",
+                    Checked = CrashReportConsent.IsGiven
                 }
             };
         }
 
         public static void BeforeExtract(InstallRequest request, Action<int, string> report, List<string> notes)
         {
+            CrashReportConsent.Set(request.Has(CrashReportConsent.OptionKey));
+            SetupLog.Append("crash reports: " + request.Has(CrashReportConsent.OptionKey));
         }
 
         public static void AfterExtract(InstallRequest request, Action<int, string> report, List<string> notes)

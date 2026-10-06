@@ -82,6 +82,7 @@ namespace ClaudeGlow
                 optionBoxes.Add(new KeyValuePair<SetupOption, CheckBox>(option, box));
                 layout.Controls.Add(box);
                 if (option.Hint != null) layout.Controls.Add(Hint(option.Hint));
+                if (option.Details != null) AddDetails(layout, option);
             }
             autostartBox.Text = "Запускать при входе в Windows";
             autostartBox.Checked = true;
@@ -118,6 +119,21 @@ namespace ClaudeGlow
         private static Label Hint(string text)
         {
             return new Label { Text = text, AutoSize = true, MaximumSize = new Size(ContentWidth, 0), ForeColor = SystemColors.GrayText, Margin = new Padding(18, 2, 0, 0) };
+        }
+
+        private static void AddDetails(TableLayoutPanel layout, SetupOption option)
+        {
+            string title = option.DetailsTitle ?? "Подробнее";
+            var toggle = new LinkLabel { Text = title + " ▸", AutoSize = true, Margin = new Padding(18, 2, 0, 0) };
+            Label details = Hint(option.Details);
+            details.Visible = false;
+            toggle.LinkClicked += (sender, e) =>
+            {
+                details.Visible = !details.Visible;
+                toggle.Text = title + (details.Visible ? " ▾" : " ▸");
+            };
+            layout.Controls.Add(toggle);
+            layout.Controls.Add(details);
         }
 
         private void BrowseFolder()

@@ -10,8 +10,14 @@ namespace ClaudeGlow
 
         public static void Write(string source, Exception error, bool terminating)
         {
-            AppLog.Append("CRASH (" + source + (terminating ? ", terminating" : "") + "): " + (error == null ? "unknown error" : error.ToString()));
+            string text = error == null ? "unknown error" : error.ToString();
+            AppLog.Append("CRASH (" + source + (terminating ? ", terminating" : "") + "): " + text);
             if (Interlocked.Exchange(ref shown, 1) != 0) return;
+            if (CrashReportConsent.IsGiven)
+            {
+                string problem = CrashUploader.Send(source, text, AppLog.FilePath);
+                AppLog.Append(problem == null ? "отчёт о сбое отправлен" : "отчёт о сбое не отправлен: " + problem);
+            }
             try
             {
                 MessageBox.Show(
