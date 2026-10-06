@@ -76,6 +76,18 @@ namespace ClaudeGlow
             SendSized((uint)deviceIndex, UpdateLedsPacket, body.ToArray());
         }
 
+        public bool IsClosedByServer()
+        {
+            Socket socket = tcp.Client;
+            return socket.Poll(0, SelectMode.SelectRead) && socket.Available == 0;
+        }
+
+        public void Ping()
+        {
+            Send(0, RequestProtocolVersion, new ProtocolWriter().U32(ProtocolVersion).ToArray());
+            Receive(RequestProtocolVersion);
+        }
+
         public bool ConsumeDeviceListUpdated()
         {
             while (stream.DataAvailable)

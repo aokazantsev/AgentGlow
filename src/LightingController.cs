@@ -150,6 +150,40 @@ namespace ClaudeGlow
             return client != null;
         }
 
+        public bool CheckAlive()
+        {
+            if (client == null) return false;
+            try
+            {
+                if (client.IsClosedByServer()) throw new IOException("OpenRGB закрыл соединение");
+                ServiceStatusCheck();
+                client.Ping();
+                return true;
+            }
+            catch (Exception error)
+            {
+                NotResponding = IsTimeout(error);
+                LastError = (NotResponding ? "OpenRGB перестал отвечать — " : "") + error.GetType().Name + ": " + error.Message;
+                Drop();
+                return false;
+            }
+        }
+
+        private static void ServiceStatusCheck()
+        {
+            System.ServiceProcess.ServiceControllerStatus? status = OpenRgbService.Status();
+            if (status.HasValue && status.Value != System.ServiceProcess.ServiceControllerStatus.Running)
+            {
+                throw new IOException("служба OpenRGB в состоянии " + status.Value);
+            }
+        }
+
+        private static bool IsTimeout(Exception error)
+        {
+            var socketError = (error is IOException ? error.InnerException : error) as SocketException;
+            return socketError != null && socketError.SocketErrorCode == SocketError.TimedOut;
+        }
+
         public bool RefreshDeviceList()
         {
             if (client == null) return false;

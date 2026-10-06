@@ -33,6 +33,8 @@ namespace ClaudeGlow
         private readonly Timer livenessTimer = new Timer();
         private readonly Timer animationTimer = new Timer();
         private readonly Timer repairBlinkTimer = new Timer();
+        private readonly Timer openRgbWatchTimer = new Timer();
+        private const int OpenRgbWatchIntervalMs = 5000;
         private bool repairBlinkOn;
         private bool hooksInstalled = true;
         private const int RepairBlinkIntervalMs = 500;
@@ -72,6 +74,9 @@ namespace ClaudeGlow
             trayIcon.ContextMenuStrip.Opening += OnMenuOpening;
             trayIcon.MouseDoubleClick += OnTrayDoubleClick;
             trayIcon.BalloonTipClicked += OnBalloonClicked;
+            openRgbWatchTimer.Interval = OpenRgbWatchIntervalMs;
+            openRgbWatchTimer.Tick += OnOpenRgbWatchTick;
+            openRgbWatchTimer.Start();
             repairBlinkTimer.Interval = RepairBlinkIntervalMs;
             repairBlinkTimer.Tick += (sender, e) =>
             {
@@ -115,6 +120,7 @@ namespace ClaudeGlow
             livenessTimer.Dispose();
             animationTimer.Dispose();
             repairBlinkTimer.Dispose();
+            openRgbWatchTimer.Dispose();
             if (listener != null) listener.Dispose();
             if (settingsForm != null) settingsForm.Close();
             lighting.RestoreOriginals();
@@ -556,6 +562,15 @@ namespace ClaudeGlow
             if (lighting.IsConnected) Refresh();
             else UpdateAnimationTimer();
             CheckOpenRgbHealth();
+        }
+
+        private void OnOpenRgbWatchTick(object sender, EventArgs e)
+        {
+            if (!lighting.IsConnected || openRgbRestartRunning) return;
+            if (lighting.CheckAlive()) return;
+            LogOpenRgbState();
+            UpdateTrayIcon();
+            reconnectTimer.Start();
         }
 
         private void CheckOpenRgbHealth()
