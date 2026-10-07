@@ -8,8 +8,10 @@ namespace ClaudeGlow
     {
         private const string AskUserQuestionTool = "AskUserQuestion";
         private const string MainThread = "";
+        private const string PermissionCandidatesKey = "\0permission";
         private static readonly TimeSpan SessionLifetime = TimeSpan.FromHours(12);
         private static readonly TimeSpan DoneIdleAfter = TimeSpan.FromMinutes(1);
+        private static readonly TimeSpan PermissionDialogDelay = TimeSpan.FromSeconds(60);
 
         private readonly Dictionary<string, SessionState> sessions = new Dictionary<string, SessionState>();
 
@@ -103,28 +105,108 @@ namespace ClaudeGlow
         private static void ApplyAttention(SessionState session, HookEvent hookEvent, DateTime nowUtc)
         {
             string actor = AttentionActor(session, hookEvent);
+            if (hookEvent.EventName != "Notification") MarkOthersActive(session, actor);
             switch (hookEvent.EventName)
             {
-                case "UserPromptSubmit":
                 case "StopFailure":
-                    session.Pending.Clear();
+                    ClearAttention(session);
+                    break;
+                case "UserPromptSubmit":
+                    ForgetActor(session, MainThread);
                     break;
                 case "Stop":
-                    if (hookEvent.BackgroundTaskCount > 0) session.Pending.Remove(MainThread);
-                    else session.Pending.Clear();
+                    if (hookEvent.BackgroundTaskCount > 0) ForgetActor(session, MainThread);
+                    else ClearAttention(session);
+                    break;
+                case "PermissionRequest":
+                    if (hookEvent.ToolUseId != null) session.OpenPermissionRequests[hookEvent.ToolUseId] = new PermissionRequestRecord(actor, nowUtc);
                     break;
                 case "PostToolUse":
                 case "PostToolUseFailure":
                 case "PermissionDenied":
                     session.Pending.Remove(actor);
+                    if (hookEvent.ToolUseId != null) ResolveToolUse(session, hookEvent.ToolUseId);
                     break;
                 case "PreToolUse":
                     if (hookEvent.ToolName == AskUserQuestionTool) session.Pending[actor] = new PendingAttention(GlowStatus.Question, nowUtc);
                     break;
                 case "Notification":
                     GlowStatus attention = NotificationAttention(hookEvent);
-                    if (attention != GlowStatus.Idle) session.Pending[actor] = new PendingAttention(attention, nowUtc);
+                    if (attention == GlowStatus.Permission && hookEvent.AgentId == null && session.OpenPermissionRequests.Count > 0)
+                    {
+                        AddPermissionCandidates(session, nowUtc);
+                    }
+                    else if (attention != GlowStatus.Idle)
+                    {
+                        session.Pending[actor] = new PendingAttention(attention, nowUtc);
+                    }
                     break;
+            }
+        }
+
+        private static void AddPermissionCandidates(SessionState session, DateTime nowUtc)
+        {
+            PendingAttention existing;
+            var candidates = RecentPermissionRequests(session, nowUtc);
+            if (session.Pending.TryGetValue(PermissionCandidatesKey, out existing))
+            {
+                foreach (KeyValuePair<string, string> pair in existing.ToolUseActors)
+                {
+                    candidates[pair.Key] = pair.Value;
+                }
+            }
+            var permission = new PendingAttention(GlowStatus.Permission, nowUtc, candidates);
+            permission.OthersActive = new HashSet<string>(candidates.Values).Count > 1
+                || (existing != null && existing.OthersActive);
+            session.Pending[PermissionCandidatesKey] = permission;
+        }
+
+        private static Dictionary<string, string> RecentPermissionRequests(SessionState session, DateTime nowUtc)
+        {
+            var all = new Dictionary<string, string>();
+            var recent = new Dictionary<string, string>();
+            foreach (KeyValuePair<string, PermissionRequestRecord> pair in session.OpenPermissionRequests)
+            {
+                all[pair.Key] = pair.Value.Actor;
+                if (nowUtc - pair.Value.SinceUtc <= PermissionDialogDelay) recent[pair.Key] = pair.Value.Actor;
+            }
+            return recent.Count > 0 ? recent : all;
+        }
+
+        private static void ResolveToolUse(SessionState session, string toolUseId)
+        {
+            session.OpenPermissionRequests.Remove(toolUseId);
+            PendingAttention candidates;
+            if (!session.Pending.TryGetValue(PermissionCandidatesKey, out candidates)) return;
+            candidates.ToolUseActors.Remove(toolUseId);
+            if (candidates.ToolUseActors.Count == 0) session.Pending.Remove(PermissionCandidatesKey);
+        }
+
+        private static void ForgetActor(SessionState session, string actor)
+        {
+            session.Pending.Remove(actor);
+            var resolved = new List<string>();
+            foreach (KeyValuePair<string, PermissionRequestRecord> pair in session.OpenPermissionRequests)
+            {
+                if (pair.Value.Actor == actor) resolved.Add(pair.Key);
+            }
+            foreach (string toolUseId in resolved)
+            {
+                ResolveToolUse(session, toolUseId);
+            }
+        }
+
+        private static void ClearAttention(SessionState session)
+        {
+            session.Pending.Clear();
+            session.OpenPermissionRequests.Clear();
+        }
+
+        private static void MarkOthersActive(SessionState session, string actor)
+        {
+            foreach (KeyValuePair<string, PendingAttention> pair in session.Pending)
+            {
+                if (!pair.Value.BelongsTo(pair.Key, actor)) pair.Value.OthersActive = true;
             }
         }
 
@@ -182,7 +264,7 @@ namespace ClaudeGlow
                 var approved = new List<string>();
                 foreach (KeyValuePair<string, PendingAttention> pair in session.Pending)
                 {
-                    if (pair.Value.Status != GlowStatus.Permission) continue;
+                    if (pair.Value.Status != GlowStatus.Permission || pair.Value.OthersActive) continue;
                     if (ProcessTree.HasChildStartedAfter(session.Process.ProcessId, pair.Value.SinceUtc)) approved.Add(pair.Key);
                 }
                 foreach (string actor in approved)
@@ -266,6 +348,7 @@ namespace ClaudeGlow
                 case "PostToolUse":
                 case "PostToolUseFailure":
                 case "PermissionDenied":
+                case "PermissionRequest":
                 case "PreToolUse":
                     return current == GlowStatus.Error ? current : GlowStatus.Working;
                 case "Stop":

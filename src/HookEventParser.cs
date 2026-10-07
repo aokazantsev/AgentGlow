@@ -18,7 +18,8 @@ namespace ClaudeGlow
             hookEvent.NotificationType = Field(root, json, "notification_type");
             hookEvent.Message = Field(root, json, "message");
             hookEvent.ToolName = Field(root, json, "tool_name");
-            hookEvent.Cwd = Field(root, json, "cwd");
+            hookEvent.ToolUseId = Field(root, json, "tool_use_id");
+            hookEvent.Cwd =Field(root, json, "cwd");
             hookEvent.AgentId = Field(root, json, "agent_id");
             hookEvent.BackgroundTaskCount = ListLength(root, "background_tasks");
             if (string.IsNullOrEmpty(hookEvent.SessionId) || string.IsNullOrEmpty(hookEvent.EventName)) return null;

@@ -19,6 +19,7 @@ namespace ClaudeGlow
         {
             new[] { "UserPromptSubmit", null },
             new[] { "PreToolUse", "AskUserQuestion" },
+            new[] { "PermissionRequest", null },
             new[] { "PostToolUse", null },
             new[] { "PermissionDenied", null },
             new[] { "PostToolUseFailure", null },
