@@ -7,7 +7,7 @@ namespace ClaudeGlow
     {
         public readonly GlowStatus Status;
         public readonly DateTime SinceUtc;
-        public readonly Dictionary<string, string> ToolUseActors;
+        public readonly Dictionary<string, string> CallActors;
         public bool OthersActive;
 
         public PendingAttention(GlowStatus status, DateTime sinceUtc)
@@ -15,16 +15,16 @@ namespace ClaudeGlow
         {
         }
 
-        public PendingAttention(GlowStatus status, DateTime sinceUtc, Dictionary<string, string> toolUseActors)
+        public PendingAttention(GlowStatus status, DateTime sinceUtc, Dictionary<string, string> callActors)
         {
             Status = status;
             SinceUtc = sinceUtc;
-            ToolUseActors = toolUseActors;
+            CallActors = callActors;
         }
 
         public bool BelongsTo(string key, string actor)
         {
-            return ToolUseActors == null ? key == actor : ToolUseActors.ContainsValue(actor);
+            return CallActors == null ? key == actor : CallActors.ContainsValue(actor);
         }
     }
 }

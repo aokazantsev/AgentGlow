@@ -18,12 +18,22 @@ namespace ClaudeGlow
             hookEvent.NotificationType = Field(root, json, "notification_type");
             hookEvent.Message = Field(root, json, "message");
             hookEvent.ToolName = Field(root, json, "tool_name");
-            hookEvent.ToolUseId = Field(root, json, "tool_use_id");
             hookEvent.Cwd =Field(root, json, "cwd");
             hookEvent.AgentId = Field(root, json, "agent_id");
             hookEvent.BackgroundTaskCount = ListLength(root, "background_tasks");
+            hookEvent.CallKey = CallKey(root, hookEvent);
             if (string.IsNullOrEmpty(hookEvent.SessionId) || string.IsNullOrEmpty(hookEvent.EventName)) return null;
             return hookEvent;
+        }
+
+        private static string CallKey(Dictionary<string, object> root, HookEvent hookEvent)
+        {
+            object toolInput;
+            if (root == null || hookEvent.ToolName == null || !root.TryGetValue("tool_input", out toolInput)) return null;
+            var serializer = new JavaScriptSerializer();
+            serializer.MaxJsonLength = int.MaxValue;
+            serializer.RecursionLimit = SerializerRecursionLimit;
+            return (hookEvent.AgentId ?? "") + "\n" + hookEvent.ToolName + "\n" + serializer.Serialize(toolInput);
         }
 
         private static Dictionary<string, object> TryDeserialize(string json)

@@ -12,6 +12,7 @@ namespace ClaudeGlow
         private static readonly TimeSpan SessionLifetime = TimeSpan.FromHours(12);
         private static readonly TimeSpan DoneIdleAfter = TimeSpan.FromMinutes(1);
         private static readonly TimeSpan PermissionDialogDelay = TimeSpan.FromSeconds(60);
+        private static readonly TimeSpan OtherActorsWindow = TimeSpan.FromMinutes(5);
 
         private readonly Dictionary<string, SessionState> sessions = new Dictionary<string, SessionState>();
 
@@ -105,7 +106,11 @@ namespace ClaudeGlow
         private static void ApplyAttention(SessionState session, HookEvent hookEvent, DateTime nowUtc)
         {
             string actor = AttentionActor(session, hookEvent);
-            if (hookEvent.EventName != "Notification") MarkOthersActive(session, actor);
+            if (hookEvent.EventName != "Notification")
+            {
+                MarkOthersActive(session, actor);
+                session.ActorSeenUtc[actor] = nowUtc;
+            }
             switch (hookEvent.EventName)
             {
                 case "StopFailure":
@@ -119,13 +124,13 @@ namespace ClaudeGlow
                     else ClearAttention(session);
                     break;
                 case "PermissionRequest":
-                    if (hookEvent.ToolUseId != null) session.OpenPermissionRequests[hookEvent.ToolUseId] = new PermissionRequestRecord(actor, nowUtc);
+                    if (hookEvent.CallKey != null) session.OpenPermissionRequests[hookEvent.CallKey] = new PermissionRequestRecord(actor, nowUtc);
                     break;
                 case "PostToolUse":
                 case "PostToolUseFailure":
                 case "PermissionDenied":
                     session.Pending.Remove(actor);
-                    if (hookEvent.ToolUseId != null) ResolveToolUse(session, hookEvent.ToolUseId);
+                    if (hookEvent.CallKey != null) ResolveCall(session, hookEvent.CallKey);
                     break;
                 case "PreToolUse":
                     if (hookEvent.ToolName == AskUserQuestionTool) session.Pending[actor] = new PendingAttention(GlowStatus.Question, nowUtc);
@@ -138,7 +143,9 @@ namespace ClaudeGlow
                     }
                     else if (attention != GlowStatus.Idle)
                     {
-                        session.Pending[actor] = new PendingAttention(attention, nowUtc);
+                        var pending = new PendingAttention(attention, nowUtc);
+                        pending.OthersActive = OthersSeenRecently(session, new[] { actor }, nowUtc);
+                        session.Pending[actor] = pending;
                     }
                     break;
             }
@@ -150,15 +157,28 @@ namespace ClaudeGlow
             var candidates = RecentPermissionRequests(session, nowUtc);
             if (session.Pending.TryGetValue(PermissionCandidatesKey, out existing))
             {
-                foreach (KeyValuePair<string, string> pair in existing.ToolUseActors)
+                foreach (KeyValuePair<string, string> pair in existing.CallActors)
                 {
                     candidates[pair.Key] = pair.Value;
                 }
             }
             var permission = new PendingAttention(GlowStatus.Permission, nowUtc, candidates);
             permission.OthersActive = new HashSet<string>(candidates.Values).Count > 1
-                || (existing != null && existing.OthersActive);
+                || (existing != null && existing.OthersActive)
+                || OthersSeenRecently(session, candidates.Values, nowUtc);
             session.Pending[PermissionCandidatesKey] = permission;
+        }
+
+        private static bool OthersSeenRecently(SessionState session, IEnumerable<string> actors, DateTime nowUtc)
+        {
+            var own = new HashSet<string>(actors);
+            bool seen = false;
+            foreach (KeyValuePair<string, DateTime> pair in new List<KeyValuePair<string, DateTime>>(session.ActorSeenUtc))
+            {
+                if (nowUtc - pair.Value > OtherActorsWindow) session.ActorSeenUtc.Remove(pair.Key);
+                else if (!own.Contains(pair.Key)) seen = true;
+            }
+            return seen;
         }
 
         private static Dictionary<string, string> RecentPermissionRequests(SessionState session, DateTime nowUtc)
@@ -173,13 +193,13 @@ namespace ClaudeGlow
             return recent.Count > 0 ? recent : all;
         }
 
-        private static void ResolveToolUse(SessionState session, string toolUseId)
+        private static void ResolveCall(SessionState session, string callKey)
         {
-            session.OpenPermissionRequests.Remove(toolUseId);
+            session.OpenPermissionRequests.Remove(callKey);
             PendingAttention candidates;
             if (!session.Pending.TryGetValue(PermissionCandidatesKey, out candidates)) return;
-            candidates.ToolUseActors.Remove(toolUseId);
-            if (candidates.ToolUseActors.Count == 0) session.Pending.Remove(PermissionCandidatesKey);
+            candidates.CallActors.Remove(callKey);
+            if (candidates.CallActors.Count == 0) session.Pending.Remove(PermissionCandidatesKey);
         }
 
         private static void ForgetActor(SessionState session, string actor)
@@ -190,9 +210,9 @@ namespace ClaudeGlow
             {
                 if (pair.Value.Actor == actor) resolved.Add(pair.Key);
             }
-            foreach (string toolUseId in resolved)
+            foreach (string callKey in resolved)
             {
-                ResolveToolUse(session, toolUseId);
+                ResolveCall(session, callKey);
             }
         }
 

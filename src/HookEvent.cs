@@ -7,7 +7,7 @@ namespace ClaudeGlow
         public string NotificationType;
         public string Message;
         public string ToolName;
-        public string ToolUseId;
+        public string CallKey;
         public string Cwd;
         public string AgentId;
         public int BackgroundTaskCount;

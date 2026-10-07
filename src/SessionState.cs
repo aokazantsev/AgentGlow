@@ -15,6 +15,7 @@ namespace ClaudeGlow
         public string LastAgentId;
         public readonly Dictionary<string, PendingAttention> Pending = new Dictionary<string, PendingAttention>();
         public readonly Dictionary<string, PermissionRequestRecord> OpenPermissionRequests = new Dictionary<string, PermissionRequestRecord>();
+        public readonly Dictionary<string, DateTime> ActorSeenUtc = new Dictionary<string, DateTime>();
 
         public GlowStatus Status
         {
