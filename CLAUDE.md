@@ -45,8 +45,9 @@
   Не ломать их формат; проверять JSON после правки. Файл может быть симлинком — запись идёт в цель.
 - `ClaudeHooks` проверять на копии `settings.json` через `CLAUDE_CONFIG_DIR`: снять → поставить → сравнить набор
   хуков и остальные ключи с исходником (порядок групп внутри события может смениться).
-- Плагин OpenCode проверять на настоящем OpenCode: `opencode-cli.exe serve --port 4199` из
-  `%LOCALAPPDATA%\opencode`, сессия — POST `/session?directory=<папка>`, запрос — `prompt_async`, разрешения и вопросы
+- Плагин OpenCode проверять на настоящем OpenCode: консольный `opencode.exe serve --port 4199` (постоянно не
+  установлен — архив `opencode-windows-x64.zip` той же версии, что десктоп, из Releases `anomalyco/opencode`,
+  распаковать во временную папку), сессия — POST `/session?directory=<папка>`, запрос — `prompt_async`, разрешения и вопросы
   — `GET /permission`, `GET /question`. В окружении задана `OPENCODE_SERVER_PASSWORD` — нужен Basic-auth. Сервер
   запускать отдельным вызовом без перенаправления вывода в той же команде (инструмент зависает). Созданные тестовые
   сессии удалять (`DELETE /session/<id>`): они попадают в базу пользователя.
