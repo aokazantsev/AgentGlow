@@ -25,7 +25,6 @@ namespace AgentGlow
         private static readonly TimeSpan OpenRgbAutoRestartAfter = TimeSpan.FromSeconds(30);
         private static readonly TimeSpan OpenRgbAutoRestartCooldown = TimeSpan.FromMinutes(10);
         private static readonly Color NeutralColor = Color.FromArgb(128, 128, 128);
-        private static readonly StatusEffect PausedEffect = new StatusEffect(EffectKind.Original, 0xFFFFFF, 3);
         private static readonly StatusEffect DarkEffect = new StatusEffect(EffectKind.Off, 0x000000, 3);
 
         private readonly NotifyIcon trayIcon = new NotifyIcon();
@@ -132,7 +131,7 @@ namespace AgentGlow
             openRgbWatchTimer.Dispose();
             if (listener != null) listener.Dispose();
             if (settingsForm != null) settingsForm.Close();
-            lighting.RestoreOriginals();
+            ParkLighting("exit");
             lighting.Dispose();
             trayIcon.Visible = false;
             trayIcon.Dispose();
@@ -142,7 +141,19 @@ namespace AgentGlow
 
         private void OnSessionEnding(object sender, SessionEndingEventArgs e)
         {
-            lighting.RestoreOriginals();
+            ParkLighting("windows session ending");
+        }
+
+        private StatusEffect ParkedEffect()
+        {
+            return settings.EffectFor(GlowStatus.Idle);
+        }
+
+        private void ParkLighting(string reason)
+        {
+            StatusEffect parked = ParkedEffect();
+            lighting.Apply(parked, null);
+            AppLog.Append(reason + ": lighting parked as " + parked.Kind + (lighting.IsConnected ? "" : ", OpenRGB not connected"));
         }
 
         private void StartListener()
@@ -202,7 +213,7 @@ namespace AgentGlow
         private void Refresh()
         {
             if (previewEffect != null) lighting.Apply(previewEffect, null);
-            else if (paused) lighting.Apply(PausedEffect, null);
+            else if (paused) lighting.Apply(ParkedEffect(), null);
             else if (IsDark()) lighting.Apply(DarkEffect, null);
             else lighting.Apply(settings.EffectFor(sources.TopStatus), SecondaryEffect());
             dark = previewEffect == null && !paused && IsDark();

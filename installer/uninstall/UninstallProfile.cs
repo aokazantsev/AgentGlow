@@ -22,8 +22,26 @@ namespace AgentGlow
                     problems.Add(entry.DisplayName + ": интеграция в " + entry.Integration.Location + " не снята: " + error.Message);
                 }
             }
+            ParkLighting();
             string taskProblem = OpenRgbService.RemoveRestartTask();
             if (taskProblem != null) problems.Add("задача «" + OpenRgbService.RestartTaskName + "» не удалена: " + taskProblem);
+        }
+
+        private static void ParkLighting()
+        {
+            try
+            {
+                AppSettings settings = AppSettings.Load();
+                using (var lighting = new LightingController())
+                {
+                    lighting.Configure(settings.DeviceNames, settings.FixedDeviceNames, null);
+                    lighting.Apply(settings.EffectFor(GlowStatus.Idle), null);
+                    lighting.TryConnect();
+                }
+            }
+            catch (Exception)
+            {
+            }
         }
     }
 }
