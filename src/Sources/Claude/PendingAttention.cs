@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace ClaudeGlow
+namespace AgentGlow.Sources.Claude
 {
     internal sealed class PendingAttention
     {

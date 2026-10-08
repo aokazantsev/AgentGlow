@@ -1,7 +1,7 @@
 using System.IO;
 using System.Text;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal sealed class ProtocolWriter
     {

@@ -1,18 +1,18 @@
 using System;
 using System.IO;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal static class AppIdentity
     {
-        public const string Name = "ClaudeGlow";
-        public const string Version = "1.11";
-        public const string ExecutableName = "ClaudeGlow.exe";
-        public const string ProcessName = "ClaudeGlow";
+        public const string Name = "AgentGlow";
+        public const string Version = "2.0";
+        public const string ExecutableName = "AgentGlow.exe";
+        public const string ProcessName = "AgentGlow";
         public const string UninstallerName = "Uninstall.exe";
-        public const string SingleInstanceMutex = "ClaudeGlow.SingleInstance";
-        public const string GitHubUrl = "https://github.com/aokazantsev/ClaudeGlow";
-        public const string SiteUrl = "https://aokazantsev.ru/pets/claudeglow/";
+        public const string SingleInstanceMutex = "AgentGlow.SingleInstance";
+        public const string GitHubUrl = "https://github.com/aokazantsev/AgentGlow";
+        public const string SiteUrl = "https://aokazantsev.ru/pets/agentglow/";
 
         public static string DefaultInstallDirectory
         {

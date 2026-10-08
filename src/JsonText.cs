@@ -5,7 +5,7 @@ using System.Globalization;
 using System.Text;
 using System.Web.Script.Serialization;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal static class JsonText
     {

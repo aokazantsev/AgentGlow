@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal sealed class SettingsForm : Form
     {
@@ -27,7 +27,7 @@ namespace ClaudeGlow
         private readonly NumericUpDown workingTimeoutBox = new NumericUpDown();
         private readonly NumericUpDown doneTimeoutBox = new NumericUpDown();
         private readonly NumericUpDown darkAfterBox = new NumericUpDown();
-        private readonly NumericUpDown hookPortBox = new NumericUpDown();
+        private readonly NumericUpDown eventPortBox = new NumericUpDown();
         private readonly CheckBox launchOpenRgbBox = new CheckBox();
 
         public AppSettings Result;
@@ -36,7 +36,7 @@ namespace ClaudeGlow
         {
             draft = settings;
             this.preview = preview;
-            Text = "ClaudeGlow — настройки";
+            Text = "AgentGlow — настройки";
             Font = new Font("Segoe UI", 9f);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -202,7 +202,7 @@ namespace ClaudeGlow
             y += RowHeight;
             AddNumeric("Гасить, если ни от одного треда нет событий, мин (0 — никогда):", darkAfterBox, y, draft.DarkAfterMinutes, 0, 1440);
             y += RowHeight;
-            AddNumeric("Порт для хуков (применится после перезапуска):", hookPortBox, y, draft.HookPort, 1024, 65535);
+            AddNumeric("Порт приёма событий (применится после перезапуска):", eventPortBox, y, draft.EventPort, 1024, 65535);
             y += RowHeight;
             launchOpenRgbBox.Text = "Запускать OpenRGB, если он не запущен";
             launchOpenRgbBox.Checked = draft.LaunchOpenRgb;
@@ -304,7 +304,7 @@ namespace ClaudeGlow
             draft.WorkingTimeoutMinutes = (int)workingTimeoutBox.Value;
             draft.DoneTimeoutMinutes = (int)doneTimeoutBox.Value;
             draft.DarkAfterMinutes = (int)darkAfterBox.Value;
-            draft.HookPort = (int)hookPortBox.Value;
+            draft.EventPort = (int)eventPortBox.Value;
             draft.LaunchOpenRgb = launchOpenRgbBox.Checked;
             Result = draft;
             DialogResult = DialogResult.OK;

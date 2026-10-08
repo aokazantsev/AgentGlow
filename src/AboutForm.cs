@@ -4,7 +4,7 @@ using System.Drawing;
 using System.Reflection;
 using System.Windows.Forms;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal sealed class AboutForm : Form
     {

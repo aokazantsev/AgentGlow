@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Windows.Forms;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal static class CrashReport
     {

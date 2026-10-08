@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal static class InstallTarget
     {

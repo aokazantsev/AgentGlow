@@ -1,4 +1,4 @@
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal sealed class SetupOption
     {

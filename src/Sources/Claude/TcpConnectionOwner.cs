@@ -2,7 +2,7 @@ using System;
 using System.Net;
 using System.Runtime.InteropServices;
 
-namespace ClaudeGlow
+namespace AgentGlow.Sources.Claude
 {
     internal static class TcpConnectionOwner
     {

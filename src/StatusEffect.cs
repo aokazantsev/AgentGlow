@@ -2,7 +2,7 @@ using System;
 using System.Drawing;
 using System.Globalization;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal sealed class StatusEffect
     {

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal sealed class Installation
     {

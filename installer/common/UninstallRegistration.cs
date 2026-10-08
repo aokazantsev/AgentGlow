@@ -1,7 +1,7 @@
 using System.IO;
 using Microsoft.Win32;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal static class UninstallRegistration
     {

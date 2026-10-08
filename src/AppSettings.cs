@@ -4,14 +4,15 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal sealed class AppSettings
     {
-        public const int DefaultHookPort = 47651;
+        public const int DefaultEventPort = 47651;
         public const string DefaultOpenRgbPath = @"C:\Program Files\OpenRGB\OpenRGB.exe";
 
-        private const string HookPortKey = "hookPort";
+        private const string EventPortKey = "eventPort";
+        private const string SourcesKey = "sources";
         private const string DevicesKey = "devices";
         private const string WorkingTimeoutKey = "workingTimeoutMinutes";
         private const string DoneTimeoutKey = "doneTimeoutMinutes";
@@ -26,10 +27,11 @@ namespace ClaudeGlow
 
         private static readonly string FilePath = UserDataPaths.File("settings.txt");
 
-        public int HookPort = DefaultHookPort;
+        public int EventPort = DefaultEventPort;
+        public List<string> EnabledSources = new List<string>(SourceCatalog.AllIds());
         public List<string> DeviceNames;
         public int WorkingTimeoutMinutes = 30;
-        public int DoneTimeoutMinutes;
+        public int DoneTimeoutMinutes = 120;
         public int DarkAfterMinutes = 30;
         public bool LaunchOpenRgb = true;
         public string OpenRgbPath = DefaultOpenRgbPath;
@@ -43,6 +45,22 @@ namespace ClaudeGlow
             {
                 Effects[status] = StatusCatalog.DefaultEffect(status);
             }
+        }
+
+        public bool IsSourceEnabled(string id)
+        {
+            return EnabledSources.Contains(id);
+        }
+
+        private static List<string> ParseSources(string value)
+        {
+            var ids = new List<string>();
+            foreach (string id in value.Split(',', '|'))
+            {
+                string trimmed = id.Trim().ToLowerInvariant();
+                if (trimmed.Length > 0 && !ids.Contains(trimmed)) ids.Add(trimmed);
+            }
+            return ids;
         }
 
         public static bool FileExists
@@ -77,7 +95,8 @@ namespace ClaudeGlow
         public AppSettings Clone()
         {
             var copy = new AppSettings();
-            copy.HookPort = HookPort;
+            copy.EventPort = EventPort;
+            copy.EnabledSources = new List<string>(EnabledSources);
             copy.DeviceNames = DeviceNames == null ? null : new List<string>(DeviceNames);
             copy.WorkingTimeoutMinutes = WorkingTimeoutMinutes;
             copy.DoneTimeoutMinutes = DoneTimeoutMinutes;
@@ -96,7 +115,8 @@ namespace ClaudeGlow
         public bool TrySave()
         {
             var content = new StringBuilder();
-            AppendLine(content, HookPortKey, HookPort.ToString(CultureInfo.InvariantCulture));
+            AppendLine(content, EventPortKey, EventPort.ToString(CultureInfo.InvariantCulture));
+            AppendLine(content, SourcesKey, string.Join(",", EnabledSources.ToArray()));
             if (DeviceNames != null) AppendLine(content, DevicesKey, string.Join(DeviceSeparator.ToString(), DeviceNames));
             AppendLine(content, WorkingTimeoutKey, WorkingTimeoutMinutes.ToString(CultureInfo.InvariantCulture));
             AppendLine(content, DoneTimeoutKey, DoneTimeoutMinutes.ToString(CultureInfo.InvariantCulture));
@@ -126,7 +146,8 @@ namespace ClaudeGlow
 
         private void Apply(string key, string value)
         {
-            if (Is(key, HookPortKey)) HookPort = ParseInt(value, DefaultHookPort, 1024, 65535);
+            if (Is(key, EventPortKey)) EventPort = ParseInt(value, DefaultEventPort, 1024, 65535);
+            else if (Is(key, SourcesKey)) EnabledSources = ParseSources(value);
             else if (Is(key, DevicesKey)) DeviceNames = ParseDevices(value);
             else if (Is(key, WorkingTimeoutKey)) WorkingTimeoutMinutes = ParseInt(value, WorkingTimeoutMinutes, 0, 1440);
             else if (Is(key, DoneTimeoutKey)) DoneTimeoutMinutes = ParseInt(value, DoneTimeoutMinutes, 0, 1440);

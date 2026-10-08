@@ -1,5 +1,5 @@
-ClaudeGlow.exe
-ClaudeGlow.exe.config
+AgentGlow.exe
+AgentGlow.exe.config
 Uninstall.exe
 README.md
 LICENSE

@@ -5,7 +5,7 @@ using System.IO;
 using System.Threading;
 using System.Windows.Forms;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal sealed class SetupForm : Form
     {

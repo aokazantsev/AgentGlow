@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Text;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal static class AppLog
     {

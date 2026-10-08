@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal static class OpenRgbLauncher
     {

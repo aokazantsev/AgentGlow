@@ -2,7 +2,7 @@ using System;
 using System.Security;
 using Microsoft.Win32;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal static class Autostart
     {

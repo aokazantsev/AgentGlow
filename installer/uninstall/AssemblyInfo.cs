@@ -1,12 +1,12 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-[assembly: AssemblyTitle("ClaudeGlow Uninstall")]
-[assembly: AssemblyDescription("Удаление ClaudeGlow")]
+[assembly: AssemblyTitle("AgentGlow Uninstall")]
+[assembly: AssemblyDescription("Удаление AgentGlow")]
 [assembly: AssemblyCompany("aokazantsev")]
-[assembly: AssemblyProduct("ClaudeGlow")]
+[assembly: AssemblyProduct("AgentGlow")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 aokazantsev. MIT License")]
-[assembly: AssemblyVersion("1.11.0.0")]
-[assembly: AssemblyFileVersion("1.11.0.0")]
-[assembly: AssemblyInformationalVersion("1.11")]
+[assembly: AssemblyVersion("2.0.0.0")]
+[assembly: AssemblyFileVersion("2.0.0.0")]
+[assembly: AssemblyInformationalVersion("2.0")]
 [assembly: ComVisible(false)]

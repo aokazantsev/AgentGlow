@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal sealed class LightingController : IDisposable
     {

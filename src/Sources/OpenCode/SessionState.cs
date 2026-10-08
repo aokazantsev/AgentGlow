@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace ClaudeGlow
+namespace AgentGlow.Sources.OpenCode
 {
     internal sealed class SessionState
     {
@@ -10,12 +10,8 @@ namespace ClaudeGlow
         public GlowStatus WorkStatus;
         public DateTime LastEventUtc;
         public DateTime StatusSinceUtc;
-        public int BackgroundTaskCount;
-        public bool WaitsForBackgroundTasks;
-        public string LastAgentId;
+        public DateTime? ErrorUntilUtc;
         public readonly Dictionary<string, PendingAttention> Pending = new Dictionary<string, PendingAttention>();
-        public readonly Dictionary<string, PermissionRequestRecord> OpenPermissionRequests = new Dictionary<string, PermissionRequestRecord>();
-        public readonly Dictionary<string, DateTime> ActorSeenUtc = new Dictionary<string, DateTime>();
 
         public GlowStatus Status
         {

@@ -5,7 +5,7 @@ using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal static class StatusIconPainter
     {

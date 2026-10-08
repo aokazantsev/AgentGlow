@@ -6,26 +6,30 @@ using System.Net.Sockets;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal sealed class TrayApplication : ApplicationContext
     {
-        private const string AppTitle = "ClaudeGlow";
+        private const string AppTitle = "AgentGlow";
         private const int MaxTrayTextLength = 63;
-        private const int MaxMenuSessions = 12;
+        private const int MaxMenuThreads = 12;
         private const int HousekeepingIntervalMs = 15 * 1000;
         private const int ReconnectIntervalMs = 5 * 1000;
         private const int PreviewDurationMs = 5 * 1000;
         private const int LivenessIntervalMs = 5 * 1000;
         private const int AnimationIntervalMs = 40;
+        private const int OpenRgbWatchIntervalMs = 5000;
+        private const int RepairBlinkIntervalMs = 500;
+        private const string RepairingText = "перезапускаю службу…";
         private static readonly TimeSpan LaunchRetryInterval = TimeSpan.FromMinutes(1);
+        private static readonly TimeSpan OpenRgbAutoRestartAfter = TimeSpan.FromSeconds(30);
+        private static readonly TimeSpan OpenRgbAutoRestartCooldown = TimeSpan.FromMinutes(10);
         private static readonly Color NeutralColor = Color.FromArgb(128, 128, 128);
         private static readonly StatusEffect PausedEffect = new StatusEffect(EffectKind.Original, 0xFFFFFF, 3);
         private static readonly StatusEffect DarkEffect = new StatusEffect(EffectKind.Off, 0x000000, 3);
 
         private readonly NotifyIcon trayIcon = new NotifyIcon();
         private readonly Control invoker = new Control();
-        private readonly SessionTracker tracker = new SessionTracker();
         private readonly LightingController lighting = new LightingController();
         private readonly Timer housekeepingTimer = new Timer();
         private readonly Timer reconnectTimer = new Timer();
@@ -34,15 +38,13 @@ namespace ClaudeGlow
         private readonly Timer animationTimer = new Timer();
         private readonly Timer repairBlinkTimer = new Timer();
         private readonly Timer openRgbWatchTimer = new Timer();
-        private const int OpenRgbWatchIntervalMs = 5000;
-        private bool repairBlinkOn;
-        private bool hooksInstalled = true;
-        private const int RepairBlinkIntervalMs = 500;
-        private const string RepairingText = "перезапускаю службу…";
         private readonly Stopwatch animationClock = new Stopwatch();
+        private readonly Dictionary<string, bool> integrationInstalled = new Dictionary<string, bool>();
+        private SourceSet sources;
         private AppSettings settings;
-        private HookListener listener;
+        private EventListener listener;
         private StatusEffect previewEffect;
+        private bool repairBlinkOn;
         private bool paused;
         private bool dark;
         private string loggedOpenRgbState;
@@ -50,8 +52,6 @@ namespace ClaudeGlow
         private DateTime? openRgbUnhealthySinceUtc;
         private DateTime lastOpenRgbAutoRestartUtc = DateTime.MinValue;
         private bool restartOnBalloonClick;
-        private static readonly TimeSpan OpenRgbAutoRestartAfter = TimeSpan.FromSeconds(30);
-        private static readonly TimeSpan OpenRgbAutoRestartCooldown = TimeSpan.FromMinutes(10);
         private DateTime lastActivityUtc = DateTime.UtcNow;
         private DateTime lastLaunchAttemptUtc = DateTime.MinValue;
         private SettingsForm settingsForm;
@@ -66,9 +66,11 @@ namespace ClaudeGlow
             {
                 settings.TrySave();
             }
-            AppLog.Append("settings: first run=" + firstRun + ", hook port=" + settings.HookPort
+            AppLog.Append("settings: first run=" + firstRun + ", event port=" + settings.EventPort
+                + ", sources=" + string.Join(",", settings.EnabledSources.ToArray())
                 + ", devices=" + (settings.DeviceNames == null ? "all" : string.Join("|", settings.DeviceNames.ToArray()))
                 + ", launch OpenRGB=" + settings.LaunchOpenRgb);
+            sources = SourceCatalog.Create(settings);
             invoker.CreateControl();
             trayIcon.ContextMenuStrip = new ContextMenuStrip();
             trayIcon.ContextMenuStrip.Opening += OnMenuOpening;
@@ -99,14 +101,21 @@ namespace ClaudeGlow
             animationTimer.Tick += OnAnimationTick;
 
             SystemEvents.SessionEnding += OnSessionEnding;
-            tracker.Restore(SessionStore.Load());
-            if (tracker.LatestEventUtc > DateTime.MinValue) lastActivityUtc = tracker.LatestEventUtc;
-            tracker.Expire(DateTime.UtcNow, settings.WorkingTimeoutMinutes, settings.DoneTimeoutMinutes);
+            sources.Load();
+            if (sources.LatestEventUtc > DateTime.MinValue) lastActivityUtc = sources.LatestEventUtc;
+            sources.Housekeep(DateTime.UtcNow, settings);
             UpdateLivenessTimer();
             lighting.Configure(settings.DeviceNames, settings.FixedDeviceNames, settings.FixedEffect);
             StartListener();
-            hooksInstalled = ClaudeHooks.AreInstalled(settings.HookPort);
-            AppLog.Append("hooks in Claude Code settings: " + (hooksInstalled ? "installed" : "not installed"));
+            RefreshIntegrationStatus();
+            foreach (IAgentSource source in sources.All)
+            {
+                if (source.Integration != null)
+                {
+                    AppLog.Append(source.DisplayName + " integration " + source.Integration.Location + ": "
+                        + (integrationInstalled[source.Id] ? "installed" : "not installed"));
+                }
+            }
             Connect();
             Refresh();
         }
@@ -138,51 +147,38 @@ namespace ClaudeGlow
 
         private void StartListener()
         {
-            listener = new HookListener(settings.HookPort, OnHookBody);
+            listener = new EventListener(settings.EventPort, sources, OnSourceRequest);
             try
             {
                 listener.Start();
-                AppLog.Append("hook listener on 127.0.0.1:" + settings.HookPort);
+                AppLog.Append("event listener on 127.0.0.1:" + settings.EventPort);
             }
             catch (SocketException exception)
             {
                 listener = null;
-                string message = "Порт " + settings.HookPort + " занят, события Claude не принимаются: " + exception.Message;
+                string message = "Порт " + settings.EventPort + " занят, события приложений не принимаются: " + exception.Message;
                 AppLog.Append(message);
                 trayIcon.ShowBalloonTip(5000, AppTitle, message, ToolTipIcon.Warning);
             }
         }
 
-        private void OnHookBody(string body, ProcessIdentity claudeProcess)
+        private void OnSourceRequest(IAgentSource source, EventRequest request)
         {
             try
             {
-                invoker.BeginInvoke(new Action<string, ProcessIdentity>(HandleHookBody), body, claudeProcess);
+                invoker.BeginInvoke(new Action<IAgentSource, EventRequest>(HandleRequest), source, request);
             }
             catch (InvalidOperationException)
             {
             }
         }
 
-        private void HandleHookBody(string body, ProcessIdentity claudeProcess)
+        private void HandleRequest(IAgentSource source, EventRequest request)
         {
-            HookEvent hookEvent = HookEventParser.Parse(body);
-            if (hookEvent == null)
-            {
-                AppLog.Append("unparsed event, " + body.Length + " chars");
-                return;
-            }
-            lastActivityUtc = DateTime.UtcNow;
-            bool changed = tracker.Apply(hookEvent, claudeProcess, DateTime.UtcNow) || dark;
-            AppLog.Append(hookEvent.EventName + " " + (hookEvent.NotificationType ?? hookEvent.ToolName ?? "")
-                + (hookEvent.EventName == "Stop" ? "bg=" + hookEvent.BackgroundTaskCount : "")
-                + " session=" + ShortId(hookEvent.SessionId)
-                + " pid=" + (claudeProcess == null ? "?" : claudeProcess.ProcessId.ToString())
-                + (hookEvent.AgentId == null ? "" : " agent=" + ShortId(hookEvent.AgentId))
-                + " session:" + tracker.StatusOf(hookEvent.SessionId)
-                + " -> " + tracker.TopStatus);
+            DateTime now = DateTime.UtcNow;
+            lastActivityUtc = now;
+            bool changed = source.Handle(request, now) || dark;
             UpdateLivenessTimer();
-            SessionStore.Save(tracker.Snapshot());
             if (changed) Refresh();
         }
 
@@ -208,7 +204,7 @@ namespace ClaudeGlow
             if (previewEffect != null) lighting.Apply(previewEffect, null);
             else if (paused) lighting.Apply(PausedEffect, null);
             else if (IsDark()) lighting.Apply(DarkEffect, null);
-            else lighting.Apply(settings.EffectFor(tracker.TopStatus), SecondaryEffect());
+            else lighting.Apply(settings.EffectFor(sources.TopStatus), SecondaryEffect());
             dark = previewEffect == null && !paused && IsDark();
             if (!lighting.IsConnected) reconnectTimer.Start();
             UpdateAnimationTimer();
@@ -243,7 +239,7 @@ namespace ClaudeGlow
 
         private bool IsDark()
         {
-            GlowStatus top = tracker.TopStatus;
+            GlowStatus top = sources.TopStatus;
             bool needsUser = top == GlowStatus.Error || top == GlowStatus.Permission || top == GlowStatus.Question;
             return settings.DarkAfterMinutes > 0 && !needsUser
                 && DateTime.UtcNow - lastActivityUtc >= TimeSpan.FromMinutes(settings.DarkAfterMinutes);
@@ -251,17 +247,17 @@ namespace ClaudeGlow
 
         private bool IsSplit()
         {
-            GlowStatus top = tracker.TopStatus;
+            GlowStatus top = sources.TopStatus;
             return !paused && previewEffect == null && !IsDark()
                 && (top == GlowStatus.Done || top == GlowStatus.DoneIdle)
-                && tracker.Has(GlowStatus.Working);
+                && sources.Has(GlowStatus.Working);
         }
 
         private string StatusText()
         {
             if (paused) return "пауза";
             if (IsDark()) return "погашено, нет событий " + settings.DarkAfterMinutes + " мин";
-            string text = StatusCatalog.DisplayName(tracker.TopStatus);
+            string text = StatusCatalog.DisplayName(sources.TopStatus);
             return IsSplit() ? text + " + " + StatusCatalog.DisplayName(GlowStatus.Working) : text;
         }
 
@@ -273,13 +269,23 @@ namespace ClaudeGlow
 
         private void UpdateTrayIcon()
         {
-            Color left = IconColor(tracker.TopStatus);
+            GlowStatus top = sources.TopStatus;
+            Color left = IconColor(top);
             Color right = IsSplit() ? IconColor(GlowStatus.Working) : left;
             trayIcon.Icon = StatusIconPainter.Paint(left, right, CurrentBadge());
             string text = AppTitle + ": " + StatusText();
             string problem = AppProblem();
             if (problem != null) text += "\n" + problem;
             trayIcon.Text = text.Length > MaxTrayTextLength ? text.Substring(0, MaxTrayTextLength) : text;
+        }
+
+        private void RefreshIntegrationStatus()
+        {
+            foreach (IAgentSource source in sources.All)
+            {
+                if (source.Integration == null) continue;
+                integrationInstalled[source.Id] = source.Integration.IsInstalled(settings.EventPort);
+            }
         }
 
         private void OnMenuOpening(object sender, System.ComponentModel.CancelEventArgs e)
@@ -294,25 +300,24 @@ namespace ClaudeGlow
                 restartItem.Enabled = !openRgbRestartRunning;
                 menu.Items.Add(restartItem);
             }
-            bool hooksNow = ClaudeHooks.AreInstalled(settings.HookPort);
-            if (hooksNow != hooksInstalled)
+            RefreshIntegrationStatus();
+            UpdateTrayIcon();
+            foreach (IAgentSource source in sources.All)
             {
-                hooksInstalled = hooksNow;
-                UpdateTrayIcon();
+                if (source.Integration == null) continue;
+                if (integrationInstalled[source.Id])
+                {
+                    menu.Items.Add(Disabled(source.DisplayName + ": подключено"));
+                    continue;
+                }
+                IAgentSource missing = source;
+                menu.Items.Add(new ToolStripMenuItem(source.DisplayName + " не подключён — подключить", null, (s, a) => OnInstallIntegrationClick(missing)));
             }
-            if (hooksNow)
+            List<ThreadInfo> threads = sources.ThreadsByStatus();
+            if (threads.Count > 0) menu.Items.Add(new ToolStripSeparator());
+            for (int i = 0; i < threads.Count && i < MaxMenuThreads; i++)
             {
-                menu.Items.Add(Disabled("Хуки Claude Code: подключены"));
-            }
-            else
-            {
-                menu.Items.Add(new ToolStripMenuItem("Хуки Claude Code не подключены — подключить", null, OnInstallHooksClick));
-            }
-            List<SessionState> sessions = tracker.SessionsByStatus();
-            if (sessions.Count > 0) menu.Items.Add(new ToolStripSeparator());
-            for (int i = 0; i < sessions.Count && i < MaxMenuSessions; i++)
-            {
-                menu.Items.Add(Disabled(sessions[i].Project + " — " + StatusCatalog.DisplayName(sessions[i].Status)));
+                menu.Items.Add(Disabled(threads[i].Label));
             }
             menu.Items.Add(new ToolStripSeparator());
             var pauseItem = new ToolStripMenuItem("Приостановить индикацию", null, OnPauseClick);
@@ -332,19 +337,20 @@ namespace ClaudeGlow
             e.Cancel = false;
         }
 
-        private void OnInstallHooksClick(object sender, EventArgs e)
+        private void OnInstallIntegrationClick(IAgentSource source)
         {
+            IIntegration integration = source.Integration;
             try
             {
-                ClaudeHooks.Install(settings.HookPort);
-                hooksInstalled = true;
+                integration.Install(settings.EventPort);
+                integrationInstalled[source.Id] = true;
                 UpdateTrayIcon();
-                AppLog.Append("hooks installed into " + ClaudeHooks.SettingsPath);
-                trayIcon.ShowBalloonTip(5000, AppTitle, "Хуки прописаны в " + ClaudeHooks.SettingsPath + ". Новые сессии Claude Code начнут слать события.", ToolTipIcon.Info);
+                AppLog.Append(source.DisplayName + " integration installed into " + integration.Location);
+                trayIcon.ShowBalloonTip(5000, AppTitle, source.DisplayName + ": подключено (" + integration.Location + "). Перезапусти " + source.DisplayName + ", чтобы подхватить.", ToolTipIcon.Info);
             }
             catch (Exception error)
             {
-                MessageBox.Show("Не удалось прописать хуки в " + ClaudeHooks.SettingsPath + ": " + error.Message, AppTitle, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Не удалось подключить " + source.DisplayName + " (" + integration.Location + "): " + error.Message, AppTitle, MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -389,7 +395,7 @@ namespace ClaudeGlow
                 MessageBox.Show("Не удалось сохранить settings.txt", AppTitle, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             lighting.Configure(settings.DeviceNames, settings.FixedDeviceNames, settings.FixedEffect);
-            tracker.Expire(DateTime.UtcNow, settings.WorkingTimeoutMinutes, settings.DoneTimeoutMinutes);
+            sources.Housekeep(DateTime.UtcNow, settings);
             Refresh();
         }
 
@@ -428,8 +434,7 @@ namespace ClaudeGlow
 
         private void OnResetClick(object sender, EventArgs e)
         {
-            tracker.Clear();
-            SessionStore.Save(tracker.Snapshot());
+            sources.Clear();
             UpdateLivenessTimer();
             Refresh();
         }
@@ -473,8 +478,15 @@ namespace ClaudeGlow
         private string AppProblem()
         {
             if (!lighting.IsConnected) return "OpenRGB: " + OpenRgbText();
-            if (listener == null) return "порт " + settings.HookPort + " занят — события Claude не приходят";
-            if (!hooksInstalled) return "хуки Claude Code не подключены";
+            if (listener == null) return "порт " + settings.EventPort + " занят — события не приходят";
+            foreach (IAgentSource source in sources.All)
+            {
+                bool installed;
+                if (source.Integration != null && integrationInstalled.TryGetValue(source.Id, out installed) && !installed)
+                {
+                    return source.DisplayName + " не подключён";
+                }
+            }
             return null;
         }
 
@@ -520,16 +532,15 @@ namespace ClaudeGlow
             UpdateTrayIcon();
             trayIcon.ShowBalloonTip(5000, AppTitle, lighting.IsConnected
                 ? "Служба OpenRGB перезапущена, подсветка снова работает."
-                : "Служба OpenRGB перезапущена, ClaudeGlow подключается к ней.", ToolTipIcon.Info);
+                : "Служба OpenRGB перезапущена, " + AppTitle + " подключается к ней.", ToolTipIcon.Info);
         }
 
         private void OnHousekeepingTick(object sender, EventArgs e)
         {
             if (lighting.RefreshDeviceList()) AppLog.Append("OpenRGB device list changed, reloaded");
             LogOpenRgbState();
-            bool changed = tracker.Expire(DateTime.UtcNow, settings.WorkingTimeoutMinutes, settings.DoneTimeoutMinutes);
-            if (changed) AppLog.Append("timeouts -> " + tracker.TopStatus);
-            if (changed) SessionStore.Save(tracker.Snapshot());
+            RefreshIntegrationStatus();
+            bool changed = sources.Housekeep(DateTime.UtcNow, settings);
             UpdateLivenessTimer();
             if (IsDark() != dark)
             {
@@ -537,25 +548,19 @@ namespace ClaudeGlow
                 changed = true;
             }
             if (changed) Refresh();
+            else UpdateTrayIcon();
         }
 
         private void OnLivenessTick(object sender, EventArgs e)
         {
-            bool changed = tracker.RemoveEndedProcesses();
-            if (changed) AppLog.Append("claude process ended -> " + tracker.TopStatus);
-            if (tracker.PromoteApprovedPermissions(DateTime.UtcNow))
-            {
-                AppLog.Append("permission approved, tool started -> " + tracker.TopStatus);
-                changed = true;
-            }
-            if (changed) SessionStore.Save(tracker.Snapshot());
+            bool changed = sources.CheckLiveness(DateTime.UtcNow);
             UpdateLivenessTimer();
             if (changed) Refresh();
         }
 
         private void UpdateLivenessTimer()
         {
-            livenessTimer.Enabled = tracker.HasTrackedProcesses;
+            livenessTimer.Enabled = sources.NeedsLivenessTimer;
         }
 
         private void OnReconnectTick(object sender, EventArgs e)
@@ -611,11 +616,6 @@ namespace ClaudeGlow
             if (!restartOnBalloonClick) return;
             restartOnBalloonClick = false;
             StartOpenRgbRestart(false);
-        }
-
-        private static string ShortId(string sessionId)
-        {
-            return sessionId.Length > 8 ? sessionId.Substring(0, 8) : sessionId;
         }
     }
 }

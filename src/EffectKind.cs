@@ -1,4 +1,4 @@
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal enum EffectKind
     {

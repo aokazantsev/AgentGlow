@@ -1,7 +1,7 @@
 using System;
 using System.Windows.Forms;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal static class SetupProgram
     {

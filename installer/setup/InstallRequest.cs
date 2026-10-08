@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal sealed class InstallRequest
     {

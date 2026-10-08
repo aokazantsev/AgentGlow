@@ -9,11 +9,11 @@ using System.ServiceProcess;
 using System.Text;
 using System.Threading;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal static class OpenRgbService
     {
-        public const string RestartTaskName = "ClaudeGlow OpenRGB restart";
+        public const string RestartTaskName = "AgentGlow OpenRGB restart";
         public const string RestartArgument = "/restart-openrgb";
 
         private const string ServiceName = "OpenRGB";
@@ -89,7 +89,7 @@ namespace ClaudeGlow
 
         public static string InstallRestartTask(string executablePath)
         {
-            string definitionPath = Path.Combine(Path.GetTempPath(), "ClaudeGlow-openrgb-task-" + Guid.NewGuid().ToString("N") + ".xml");
+            string definitionPath = Path.Combine(Path.GetTempPath(), "AgentGlow-openrgb-task-" + Guid.NewGuid().ToString("N") + ".xml");
             try
             {
                 File.WriteAllText(definitionPath, TaskDefinition(executablePath), Encoding.Unicode);
@@ -188,7 +188,7 @@ namespace ClaudeGlow
             }
             return "<?xml version=\"1.0\" encoding=\"UTF-16\"?>\n"
                 + "<Task version=\"1.2\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">\n"
-                + "  <RegistrationInfo><Description>ClaudeGlow: перезапуск зависшей службы OpenRGB по запросу ClaudeGlow</Description></RegistrationInfo>\n"
+                + "  <RegistrationInfo><Description>AgentGlow: перезапуск зависшей службы OpenRGB по запросу AgentGlow</Description></RegistrationInfo>\n"
                 + "  <Triggers />\n"
                 + "  <Principals>\n"
                 + "    <Principal id=\"Author\"><UserId>" + user + "</UserId><LogonType>InteractiveToken</LogonType><RunLevel>HighestAvailable</RunLevel></Principal>\n"

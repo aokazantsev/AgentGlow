@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
 
-namespace ClaudeGlow
+namespace AgentGlow.Sources.Claude
 {
     internal static class HookEventParser
     {

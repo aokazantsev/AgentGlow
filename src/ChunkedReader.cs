@@ -2,7 +2,7 @@ using System.IO;
 using System.Net.Sockets;
 using System.Text;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal sealed class ChunkedReader
     {

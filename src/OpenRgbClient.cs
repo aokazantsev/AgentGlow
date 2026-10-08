@@ -5,7 +5,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal sealed class OpenRgbClient : IDisposable
     {
@@ -22,7 +22,7 @@ namespace ClaudeGlow
         private const uint DeviceListUpdatedPacket = 100;
         private const uint UpdateLedsPacket = 1050;
         private const uint UpdateModePacket = 1101;
-        private const string ClientName = "ClaudeGlow";
+        private const string ClientName = "AgentGlow";
 
         private static readonly byte[] Magic = Encoding.ASCII.GetBytes("ORGB");
 

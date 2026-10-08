@@ -4,14 +4,14 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 
-namespace ClaudeGlow
+namespace AgentGlow.Sources.OpenCode
 {
     internal static class SessionStore
     {
         private const char FieldSeparator = '\t';
         private const int FieldCount = 7;
 
-        private static readonly string FilePath = UserDataPaths.File("sessions.txt");
+        private static readonly string FilePath = UserDataPaths.File("sessions-opencode.txt");
 
         public static void Save(List<KeyValuePair<string, SessionState>> sessions)
         {
@@ -77,7 +77,7 @@ namespace ClaudeGlow
             if (!long.TryParse(fields[5], NumberStyles.Integer, CultureInfo.InvariantCulture, out lastEvent)) return false;
             if (!long.TryParse(fields[6], NumberStyles.Integer, CultureInfo.InvariantCulture, out statusSince)) return false;
             session = new SessionState();
-            bool attention = status == GlowStatus.Permission || status == GlowStatus.Question;
+            bool attention = status == GlowStatus.Permission || status == GlowStatus.Question || status == GlowStatus.Error;
             session.WorkStatus = attention ? GlowStatus.Working : status;
             session.Project = fields[2];
             session.Process = processId == 0 ? null : new ProcessIdentity(processId, new DateTime(processStart, DateTimeKind.Utc));

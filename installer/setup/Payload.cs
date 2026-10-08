@@ -3,7 +3,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Reflection;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal static class Payload
     {

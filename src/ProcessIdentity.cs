@@ -2,7 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 
-namespace ClaudeGlow
+namespace AgentGlow
 {
     internal sealed class ProcessIdentity
     {

@@ -1,6 +1,6 @@
 using System;
 
-namespace ClaudeGlow
+namespace AgentGlow.Sources.Claude
 {
     internal sealed class PermissionRequestRecord
     {

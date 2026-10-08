@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace ClaudeGlow
+namespace AgentGlow.Sources.Claude
 {
     internal sealed class SessionTracker
     {

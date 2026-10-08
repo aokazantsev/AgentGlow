@@ -1,4 +1,4 @@
-namespace ClaudeGlow
+namespace AgentGlow.Sources.Claude
 {
     internal sealed class HookEvent
     {
