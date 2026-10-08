@@ -7,6 +7,7 @@ namespace AgentGlow.Sources.OpenCode
     internal sealed class SessionTracker
     {
         private const int MaxParentDepth = 16;
+        private const string CrashPlaceholderPrefix = "\0crash/";
         private static readonly TimeSpan SessionLifetime = TimeSpan.FromHours(12);
         private static readonly TimeSpan DoneIdleAfter = TimeSpan.FromMinutes(1);
         private static readonly TimeSpan RetryErrorGrace = TimeSpan.FromSeconds(20);
@@ -99,6 +100,11 @@ namespace AgentGlow.Sources.OpenCode
             {
                 ProcessIdentity process = ProcessIdentity.TryCapture(glowEvent.ProcessId);
                 if (process != null) session.Process = process;
+            }
+            if (session.CrashedProcessId != 0 && glowEvent.ProcessId != session.CrashedProcessId)
+            {
+                session.CrashedProcessId = 0;
+                if (session.WorkStatus == GlowStatus.Error && !session.ErrorUntilUtc.HasValue) SetWorkStatus(session, GlowStatus.Idle, nowUtc);
             }
             string before = Signature(session);
             ApplyKind(session, glowEvent, isChild, nowUtc);
@@ -253,6 +259,60 @@ namespace AgentGlow.Sources.OpenCode
                 }
                 return false;
             }
+        }
+
+        public int MarkCrashed(int processId, string processLabel, DateTime nowUtc)
+        {
+            int affected = 0;
+            foreach (SessionState session in sessions.Values)
+            {
+                if (session.Process == null || session.Process.ProcessId != processId) continue;
+                MarkSessionCrashed(session, processId, nowUtc);
+                affected++;
+            }
+            if (affected > 0) return affected;
+            SessionState placeholder = GetOrCreate(CrashPlaceholderPrefix + processId, nowUtc);
+            placeholder.Project = processLabel;
+            MarkSessionCrashed(placeholder, processId, nowUtc);
+            return 0;
+        }
+
+        private static void MarkSessionCrashed(SessionState session, int processId, DateTime nowUtc)
+        {
+            session.Pending.Clear();
+            session.Process = null;
+            session.CrashedProcessId = processId;
+            session.ErrorUntilUtc = null;
+            session.LastEventUtc = nowUtc;
+            SetWorkStatus(session, GlowStatus.Error, nowUtc);
+        }
+
+        public bool ForgetCrashedExcept(int processId)
+        {
+            var forgotten = new List<string>();
+            foreach (KeyValuePair<string, SessionState> pair in sessions)
+            {
+                if (pair.Value.CrashedProcessId != 0 && pair.Value.CrashedProcessId != processId) forgotten.Add(pair.Key);
+            }
+            foreach (string id in forgotten)
+            {
+                sessions.Remove(id);
+            }
+            return forgotten.Count > 0;
+        }
+
+        public bool RemoveProcess(int processId)
+        {
+            var ended = new List<string>();
+            foreach (KeyValuePair<string, SessionState> pair in sessions)
+            {
+                if (pair.Value.Process != null && pair.Value.Process.ProcessId == processId) ended.Add(pair.Key);
+            }
+            foreach (string id in ended)
+            {
+                sessions.Remove(id);
+            }
+            return ended.Count > 0;
         }
 
         public bool RemoveEndedProcesses()

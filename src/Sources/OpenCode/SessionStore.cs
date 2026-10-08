@@ -19,6 +19,7 @@ namespace AgentGlow.Sources.OpenCode
             foreach (KeyValuePair<string, SessionState> pair in sessions)
             {
                 SessionState session = pair.Value;
+                if (session.CrashedProcessId != 0) continue;
                 content.Append(pair.Key).Append(FieldSeparator)
                     .Append(session.WorkStatus).Append(FieldSeparator)
                     .Append(session.Project.Replace(FieldSeparator, ' ')).Append(FieldSeparator)

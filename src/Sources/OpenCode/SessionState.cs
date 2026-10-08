@@ -11,6 +11,7 @@ namespace AgentGlow.Sources.OpenCode
         public DateTime LastEventUtc;
         public DateTime StatusSinceUtc;
         public DateTime? ErrorUntilUtc;
+        public int CrashedProcessId;
         public readonly Dictionary<string, PendingAttention> Pending = new Dictionary<string, PendingAttention>();
 
         public GlowStatus Status

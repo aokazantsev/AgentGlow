@@ -9,6 +9,7 @@ namespace AgentGlow.Sources.OpenCode
 
         private readonly SessionTracker tracker = new SessionTracker();
         private readonly IIntegration integration = new OpenCodeIntegration();
+        private readonly ServerProcessWatch servers = new ServerProcessWatch();
 
         public string Id
         {
@@ -47,7 +48,7 @@ namespace AgentGlow.Sources.OpenCode
 
         public bool NeedsLivenessTimer
         {
-            get { return tracker.HasTrackedProcesses; }
+            get { return tracker.HasTrackedProcesses || servers.Count > 0; }
         }
 
         public void OnReceive(EventRequest request)
@@ -62,12 +63,16 @@ namespace AgentGlow.Sources.OpenCode
                 AppLog.Append(LogPrefix + "unparsed event, " + request.Body.Length + " chars");
                 return false;
             }
+            servers.Watch(glowEvent.ProcessId);
             if (glowEvent.Kind == GlowEventKinds.Hello)
             {
+                bool forgotten = tracker.ForgetCrashedExcept(glowEvent.ProcessId);
+                if (forgotten) AppLog.Append(LogPrefix + "server restarted, crash errors cleared -> " + tracker.TopStatus);
                 AppLog.Append(LogPrefix + "plugin connected, pid=" + glowEvent.ProcessId + ", plugin version=" + glowEvent.PluginVersion
                     + ", project=" + ProjectOf(glowEvent.Directory)
                     + (glowEvent.PluginVersion < OpenCodePlugin.CurrentVersion ? " (outdated)" : ""));
-                return false;
+                if (forgotten) Save();
+                return forgotten;
             }
             bool changed = tracker.Apply(glowEvent, nowUtc);
             if (glowEvent.Kind != GlowEventKinds.Activity)
@@ -102,12 +107,28 @@ namespace AgentGlow.Sources.OpenCode
 
         public bool CheckLiveness(DateTime nowUtc)
         {
-            bool changed = tracker.RemoveEndedProcesses();
-            if (changed)
+            bool changed = false;
+            foreach (KeyValuePair<int, int> exited in servers.TakeExited())
+            {
+                string code = "0x" + exited.Value.ToString("X8");
+                if (ServerProcessWatch.IsCrash(exited.Value))
+                {
+                    int affected = tracker.MarkCrashed(exited.Key, "сервер OpenCode упал", nowUtc);
+                    AppLog.Append(LogPrefix + "server pid=" + exited.Key + " crashed, exit code " + code + ", threads marked as error: " + affected + " -> " + tracker.TopStatus);
+                }
+                else
+                {
+                    tracker.RemoveProcess(exited.Key);
+                    AppLog.Append(LogPrefix + "server pid=" + exited.Key + " exited, exit code " + code + " -> " + tracker.TopStatus);
+                }
+                changed = true;
+            }
+            if (tracker.RemoveEndedProcesses())
             {
                 AppLog.Append(LogPrefix + "process ended -> " + tracker.TopStatus);
-                Save();
+                changed = true;
             }
+            if (changed) Save();
             return changed;
         }
 
