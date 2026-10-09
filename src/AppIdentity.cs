@@ -6,7 +6,7 @@ namespace AgentGlow
     internal static class AppIdentity
     {
         public const string Name = "AgentGlow";
-        public const string Version = "2.2";
+        public const string Version = "2.3";
         public const string ExecutableName = "AgentGlow.exe";
         public const string ProcessName = "AgentGlow";
         public const string UninstallerName = "Uninstall.exe";

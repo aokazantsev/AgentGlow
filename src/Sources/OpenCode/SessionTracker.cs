@@ -88,7 +88,7 @@ namespace AgentGlow.Sources.OpenCode
         public bool Apply(GlowEvent glowEvent, DateTime nowUtc)
         {
             if (glowEvent.SessionId == null) return false;
-            if (glowEvent.Kind == GlowEventKinds.SessionDeleted) return Remove(glowEvent.SessionId);
+            if (glowEvent.Kind == GlowEventKinds.SessionDeleted) return Remove(glowEvent.SessionId, nowUtc);
             if (glowEvent.ParentId != null && glowEvent.ParentId != glowEvent.SessionId) parents[glowEvent.SessionId] = glowEvent.ParentId;
             string rootId = RootOf(glowEvent.SessionId);
             bool isChild = rootId != glowEvent.SessionId;
@@ -117,24 +117,34 @@ namespace AgentGlow.Sources.OpenCode
             switch (glowEvent.Kind)
             {
                 case GlowEventKinds.Busy:
+                    ResumeAfterRetry(session, sessionId, nowUtc);
                     if (!isChild) BecomeWorking(session, nowUtc);
                     break;
                 case GlowEventKinds.Idle:
-                    if (isChild) ClearPendingOf(session, sessionId);
-                    else BecomeDone(session, nowUtc);
+                    if (isChild)
+                    {
+                        ClearPendingOf(session, sessionId);
+                        ResumeAfterRetry(session, sessionId, nowUtc);
+                    }
+                    else
+                    {
+                        BecomeDone(session, nowUtc);
+                    }
                     break;
                 case GlowEventKinds.Retry:
-                    BecomeRetrying(session, glowEvent.RetryAtMs, nowUtc);
+                    BecomeRetrying(session, sessionId, glowEvent.RetryAtMs, nowUtc);
                     break;
                 case GlowEventKinds.Error:
                     if (glowEvent.ErrorName == GlowEventKinds.AbortedError)
                     {
                         if (isChild) ClearPendingOf(session, sessionId);
                         else session.Pending.Clear();
+                        ResumeAfterRetry(session, sessionId, nowUtc);
                     }
                     else if (!isChild)
                     {
                         session.Pending.Clear();
+                        session.Retrying.Clear();
                         SetWorkStatus(session, GlowStatus.Error, nowUtc);
                         session.ErrorUntilUtc = null;
                     }
@@ -193,6 +203,7 @@ namespace AgentGlow.Sources.OpenCode
         private static void BecomeDone(SessionState session, DateTime nowUtc)
         {
             session.Pending.Clear();
+            session.Retrying.Clear();
             bool hardError = session.WorkStatus == GlowStatus.Error && !session.ErrorUntilUtc.HasValue;
             if (hardError) return;
             bool wasBusy = session.WorkStatus == GlowStatus.Working || session.WorkStatus == GlowStatus.Error;
@@ -200,7 +211,7 @@ namespace AgentGlow.Sources.OpenCode
             if (wasBusy) SetWorkStatus(session, GlowStatus.Done, nowUtc);
         }
 
-        private static void BecomeRetrying(SessionState session, long retryAtMs, DateTime nowUtc)
+        private static void BecomeRetrying(SessionState session, string sessionId, long retryAtMs, DateTime nowUtc)
         {
             DateTime until = nowUtc + RetryErrorDefault;
             if (retryAtMs > 0)
@@ -208,8 +219,19 @@ namespace AgentGlow.Sources.OpenCode
                 DateTime retryAt = EpochUtc.AddMilliseconds(Math.Min(retryAtMs, MaxEpochMs));
                 until = (retryAt > nowUtc ? retryAt : nowUtc) + RetryErrorGrace;
             }
+            if (session.ErrorUntilUtc.HasValue && session.ErrorUntilUtc.Value > until) until = session.ErrorUntilUtc.Value;
+            session.Retrying.Add(sessionId);
             SetWorkStatus(session, GlowStatus.Error, nowUtc);
             session.ErrorUntilUtc = until;
+        }
+
+        private static void ResumeAfterRetry(SessionState session, string sessionId, DateTime nowUtc)
+        {
+            if (!session.Retrying.Remove(sessionId)) return;
+            if (session.Retrying.Count > 0) return;
+            if (session.WorkStatus != GlowStatus.Error || !session.ErrorUntilUtc.HasValue) return;
+            session.ErrorUntilUtc = null;
+            SetWorkStatus(session, GlowStatus.Working, nowUtc);
         }
 
         private static void SetWorkStatus(SessionState session, GlowStatus status, DateTime nowUtc)
@@ -219,15 +241,16 @@ namespace AgentGlow.Sources.OpenCode
             session.StatusSinceUtc = nowUtc;
         }
 
-        private bool Remove(string sessionId)
+        private bool Remove(string sessionId, DateTime nowUtc)
         {
             bool removed = sessions.Remove(sessionId);
             parents.Remove(sessionId);
             foreach (SessionState session in sessions.Values)
             {
-                int before = session.Pending.Count;
+                string before = Signature(session);
                 ClearPendingOf(session, sessionId);
-                if (session.Pending.Count != before) removed = true;
+                ResumeAfterRetry(session, sessionId, nowUtc);
+                if (Signature(session) != before) removed = true;
             }
             return removed;
         }
@@ -280,6 +303,7 @@ namespace AgentGlow.Sources.OpenCode
         private static void MarkSessionCrashed(SessionState session, int processId, DateTime nowUtc)
         {
             session.Pending.Clear();
+            session.Retrying.Clear();
             session.Process = null;
             session.CrashedProcessId = processId;
             session.ErrorUntilUtc = null;
@@ -352,6 +376,7 @@ namespace AgentGlow.Sources.OpenCode
                 if (retryOver)
                 {
                     session.ErrorUntilUtc = null;
+                    session.Retrying.Clear();
                     SetWorkStatus(session, GlowStatus.Working, nowUtc);
                     changed = true;
                 }

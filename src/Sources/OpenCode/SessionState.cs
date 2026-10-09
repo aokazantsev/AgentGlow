@@ -13,6 +13,7 @@ namespace AgentGlow.Sources.OpenCode
         public DateTime? ErrorUntilUtc;
         public int CrashedProcessId;
         public readonly Dictionary<string, PendingAttention> Pending = new Dictionary<string, PendingAttention>();
+        public readonly HashSet<string> Retrying = new HashSet<string>();
 
         public GlowStatus Status
         {
