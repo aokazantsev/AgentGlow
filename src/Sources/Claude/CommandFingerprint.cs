@@ -10,6 +10,7 @@ namespace AgentGlow.Sources.Claude
 
         public static string OfCommand(string command)
         {
+            if (command == null) return null;
             string fingerprint = Of(command);
             return fingerprint.Length == 0 ? null : fingerprint;
         }
