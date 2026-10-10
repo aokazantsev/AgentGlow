@@ -5,7 +5,11 @@ namespace AgentGlow
 {
     internal sealed class SourceSet
     {
+        public const int DefaultLivenessIntervalMs = 5 * 1000;
+        private static readonly TimeSpan LivenessTolerance = TimeSpan.FromMilliseconds(250);
+
         private readonly List<IAgentSource> sources;
+        private readonly Dictionary<IAgentSource, DateTime> livenessCheckedUtc = new Dictionary<IAgentSource, DateTime>();
 
         public SourceSet(List<IAgentSource> sources)
         {
@@ -90,11 +94,29 @@ namespace AgentGlow
             }
         }
 
+        public int LivenessIntervalMs
+        {
+            get
+            {
+                int interval = DefaultLivenessIntervalMs;
+                foreach (IAgentSource source in sources)
+                {
+                    if (source.NeedsLivenessTimer && source.LivenessIntervalMs < interval) interval = source.LivenessIntervalMs;
+                }
+                return interval;
+            }
+        }
+
         public bool CheckLiveness(DateTime nowUtc)
         {
             bool changed = false;
             foreach (IAgentSource source in sources)
             {
+                DateTime checkedUtc;
+                bool due = !livenessCheckedUtc.TryGetValue(source, out checkedUtc)
+                    || nowUtc - checkedUtc >= TimeSpan.FromMilliseconds(source.LivenessIntervalMs) - LivenessTolerance;
+                if (!due) continue;
+                livenessCheckedUtc[source] = nowUtc;
                 if (source.CheckLiveness(nowUtc)) changed = true;
             }
             return changed;

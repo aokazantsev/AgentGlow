@@ -124,7 +124,7 @@ namespace AgentGlow.Sources.Claude
                     else ClearAttention(session);
                     break;
                 case "PermissionRequest":
-                    if (hookEvent.CallKey != null) session.OpenPermissionRequests[hookEvent.CallKey] = new PermissionRequestRecord(actor, nowUtc);
+                    if (hookEvent.CallKey != null) session.OpenPermissionRequests[hookEvent.CallKey] = new PermissionRequestRecord(actor, nowUtc, CommandFingerprint.OfCommand(hookEvent.ShellCommand));
                     break;
                 case "PostToolUse":
                 case "PostToolUseFailure":
@@ -280,23 +280,87 @@ namespace AgentGlow.Sources.Claude
             bool changed = false;
             foreach (SessionState session in sessions.Values)
             {
-                if (session.Process == null) continue;
-                var approved = new List<string>();
-                foreach (KeyValuePair<string, PendingAttention> pair in session.Pending)
-                {
-                    if (pair.Value.Status != GlowStatus.Permission || pair.Value.OthersActive) continue;
-                    if (ProcessTree.HasChildStartedAfter(session.Process.ProcessId, pair.Value.SinceUtc)) approved.Add(pair.Key);
-                }
-                foreach (string actor in approved)
-                {
-                    session.Pending.Remove(actor);
-                }
-                if (approved.Count == 0) continue;
+                if (session.Process == null || !HasPendingPermission(session)) continue;
+                List<ProcessIdentity> shells = ProcessTree.ShellChildren(session.Process.ProcessId);
+                if (shells.Count == 0) continue;
+                bool approved = ResolveStartedCommands(session, shells);
+                if (PromoteByNewShell(session, shells)) approved = true;
+                if (!approved) continue;
                 if (session.WorkStatus != GlowStatus.Error) session.WorkStatus = GlowStatus.Working;
                 session.StatusSinceUtc = nowUtc;
                 changed = true;
             }
             return changed;
+        }
+
+        private static bool ResolveStartedCommands(SessionState session, List<ProcessIdentity> shells)
+        {
+            PendingAttention candidates;
+            if (!session.Pending.TryGetValue(PermissionCandidatesKey, out candidates)) return false;
+            var commandLines = new Dictionary<int, string>();
+            var started = new List<string>();
+            foreach (string callKey in candidates.CallActors.Keys)
+            {
+                PermissionRequestRecord record;
+                if (!session.OpenPermissionRequests.TryGetValue(callKey, out record) || record.CommandFingerprint == null) continue;
+                if (AnyShellRuns(shells, record, commandLines)) started.Add(callKey);
+            }
+            foreach (string callKey in started)
+            {
+                ResolveCall(session, callKey);
+            }
+            return started.Count > 0;
+        }
+
+        private static bool AnyShellRuns(List<ProcessIdentity> shells, PermissionRequestRecord record, Dictionary<int, string> commandLines)
+        {
+            foreach (ProcessIdentity shell in shells)
+            {
+                if (shell.StartTimeUtc <= record.SinceUtc) continue;
+                string commandLine;
+                if (!commandLines.TryGetValue(shell.ProcessId, out commandLine))
+                {
+                    commandLine = ProcessCommandLine.TryRead(shell.ProcessId);
+                    commandLines[shell.ProcessId] = commandLine;
+                }
+                if (CommandFingerprint.ShellRuns(commandLine, record.CommandFingerprint)) return true;
+            }
+            return false;
+        }
+
+        private static bool PromoteByNewShell(SessionState session, List<ProcessIdentity> shells)
+        {
+            var approved = new List<string>();
+            foreach (KeyValuePair<string, PendingAttention> pair in session.Pending)
+            {
+                if (pair.Value.Status != GlowStatus.Permission || pair.Value.OthersActive || AwaitsKnownCommands(session, pair.Value)) continue;
+                if (AnyStartedAfter(shells, pair.Value.SinceUtc)) approved.Add(pair.Key);
+            }
+            foreach (string key in approved)
+            {
+                session.Pending.Remove(key);
+            }
+            return approved.Count > 0;
+        }
+
+        private static bool AwaitsKnownCommands(SessionState session, PendingAttention attention)
+        {
+            if (attention.CallActors == null) return false;
+            foreach (string callKey in attention.CallActors.Keys)
+            {
+                PermissionRequestRecord record;
+                if (!session.OpenPermissionRequests.TryGetValue(callKey, out record) || record.CommandFingerprint == null) return false;
+            }
+            return true;
+        }
+
+        private static bool AnyStartedAfter(List<ProcessIdentity> shells, DateTime sinceUtc)
+        {
+            foreach (ProcessIdentity shell in shells)
+            {
+                if (shell.StartTimeUtc > sinceUtc) return true;
+            }
+            return false;
         }
 
         private static bool HasPendingPermission(SessionState session)

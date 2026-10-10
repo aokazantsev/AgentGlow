@@ -6,6 +6,7 @@ namespace AgentGlow.Sources.Claude
     internal sealed class ClaudeSource : IAgentSource
     {
         private const string LogPrefix = "claude: ";
+        private const int PendingPermissionLivenessIntervalMs = 1000;
 
         private readonly SessionTracker tracker = new SessionTracker();
         private readonly IIntegration integration = new ClaudeIntegration();
@@ -48,6 +49,11 @@ namespace AgentGlow.Sources.Claude
         public bool NeedsLivenessTimer
         {
             get { return tracker.HasTrackedProcesses; }
+        }
+
+        public int LivenessIntervalMs
+        {
+            get { return tracker.HasPendingPermissions ? PendingPermissionLivenessIntervalMs : SourceSet.DefaultLivenessIntervalMs; }
         }
 
         public void OnReceive(EventRequest request)

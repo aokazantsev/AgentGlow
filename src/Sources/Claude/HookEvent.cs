@@ -8,6 +8,7 @@ namespace AgentGlow.Sources.Claude
         public string Message;
         public string ToolName;
         public string CallKey;
+        public string ShellCommand;
         public string Cwd;
         public string AgentId;
         public int BackgroundTaskCount;

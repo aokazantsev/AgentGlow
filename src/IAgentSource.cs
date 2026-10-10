@@ -13,6 +13,7 @@ namespace AgentGlow
         IIntegration Integration { get; }
         DateTime LatestEventUtc { get; }
         bool NeedsLivenessTimer { get; }
+        int LivenessIntervalMs { get; }
         void OnReceive(EventRequest request);
         bool Handle(EventRequest request, DateTime nowUtc);
         List<ThreadInfo> Threads();

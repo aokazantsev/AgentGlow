@@ -55,6 +55,11 @@ namespace AgentGlow.Sources.Generic
             }
         }
 
+        public int LivenessIntervalMs
+        {
+            get { return SourceSet.DefaultLivenessIntervalMs; }
+        }
+
         public bool NeedsLivenessTimer
         {
             get

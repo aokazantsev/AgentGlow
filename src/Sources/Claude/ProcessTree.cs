@@ -27,15 +27,16 @@ namespace AgentGlow.Sources.Claude
             return 0;
         }
 
-        public static bool HasChildStartedAfter(int processId, DateTime sinceUtc)
+        public static List<ProcessIdentity> ShellChildren(int processId)
         {
+            var shells = new List<ProcessIdentity>();
             foreach (KeyValuePair<int, ProcessEntry> pair in Snapshot())
             {
                 if (pair.Value.ParentProcessId != processId || !IsShell(pair.Value.ExeFile)) continue;
                 ProcessIdentity child = ProcessIdentity.TryCapture(pair.Key);
-                if (child != null && child.StartTimeUtc > sinceUtc) return true;
+                if (child != null) shells.Add(child);
             }
-            return false;
+            return shells;
         }
 
         private static bool IsClaude(string exeFile)

@@ -46,6 +46,11 @@ namespace AgentGlow.Sources.OpenCode
             get { return tracker.LatestEventUtc; }
         }
 
+        public int LivenessIntervalMs
+        {
+            get { return SourceSet.DefaultLivenessIntervalMs; }
+        }
+
         public bool NeedsLivenessTimer
         {
             get { return tracker.HasTrackedProcesses || servers.Count > 0; }

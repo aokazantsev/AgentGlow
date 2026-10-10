@@ -6,11 +6,13 @@ namespace AgentGlow.Sources.Claude
     {
         public readonly string Actor;
         public readonly DateTime SinceUtc;
+        public readonly string CommandFingerprint;
 
-        public PermissionRequestRecord(string actor, DateTime sinceUtc)
+        public PermissionRequestRecord(string actor, DateTime sinceUtc, string commandFingerprint)
         {
             Actor = actor;
             SinceUtc = sinceUtc;
+            CommandFingerprint = commandFingerprint;
         }
     }
 }

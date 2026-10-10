@@ -16,7 +16,6 @@ namespace AgentGlow
         private const int HousekeepingIntervalMs = 15 * 1000;
         private const int ReconnectIntervalMs = 5 * 1000;
         private const int PreviewDurationMs = 5 * 1000;
-        private const int LivenessIntervalMs = 5 * 1000;
         private const int AnimationIntervalMs = 40;
         private const int OpenRgbWatchIntervalMs = 5000;
         private const int RepairBlinkIntervalMs = 500;
@@ -94,7 +93,7 @@ namespace AgentGlow
             reconnectTimer.Tick += OnReconnectTick;
             previewTimer.Interval = PreviewDurationMs;
             previewTimer.Tick += OnPreviewTick;
-            livenessTimer.Interval = LivenessIntervalMs;
+            livenessTimer.Interval = SourceSet.DefaultLivenessIntervalMs;
             livenessTimer.Tick += OnLivenessTick;
             animationTimer.Interval = AnimationIntervalMs;
             animationTimer.Tick += OnAnimationTick;
@@ -571,6 +570,8 @@ namespace AgentGlow
 
         private void UpdateLivenessTimer()
         {
+            int interval = sources.LivenessIntervalMs;
+            if (livenessTimer.Interval != interval) livenessTimer.Interval = interval;
             livenessTimer.Enabled = sources.NeedsLivenessTimer;
         }
 

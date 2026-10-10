@@ -8,6 +8,7 @@ namespace AgentGlow.Sources.Claude
     internal static class HookEventParser
     {
         private const int SerializerRecursionLimit = 1000;
+        private const string ShellTool = "Bash";
 
         public static HookEvent Parse(string json)
         {
@@ -22,6 +23,7 @@ namespace AgentGlow.Sources.Claude
             hookEvent.AgentId = Field(root, json, "agent_id");
             hookEvent.BackgroundTaskCount = ListLength(root, "background_tasks");
             hookEvent.CallKey = CallKey(root, hookEvent);
+            hookEvent.ShellCommand = ShellCommand(root, hookEvent);
             if (string.IsNullOrEmpty(hookEvent.SessionId) || string.IsNullOrEmpty(hookEvent.EventName)) return null;
             return hookEvent;
         }
@@ -34,6 +36,15 @@ namespace AgentGlow.Sources.Claude
             serializer.MaxJsonLength = int.MaxValue;
             serializer.RecursionLimit = SerializerRecursionLimit;
             return (hookEvent.AgentId ?? "") + "\n" + hookEvent.ToolName + "\n" + serializer.Serialize(toolInput);
+        }
+
+        private static string ShellCommand(Dictionary<string, object> root, HookEvent hookEvent)
+        {
+            object toolInput;
+            if (root == null || hookEvent.ToolName != ShellTool || !root.TryGetValue("tool_input", out toolInput)) return null;
+            var input = toolInput as Dictionary<string, object>;
+            object command;
+            return input != null && input.TryGetValue("command", out command) ? command as string : null;
         }
 
         private static Dictionary<string, object> TryDeserialize(string json)
