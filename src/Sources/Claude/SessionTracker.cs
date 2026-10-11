@@ -108,6 +108,7 @@ namespace AgentGlow.Sources.Claude
             string actor = AttentionActor(session, hookEvent);
             if (hookEvent.EventName != "Notification")
             {
+                if (actor == MainThread) ForgetAgentQuestions(session);
                 MarkOthersActive(session, actor);
                 session.ActorSeenUtc[actor] = nowUtc;
             }
@@ -213,6 +214,19 @@ namespace AgentGlow.Sources.Claude
             foreach (string callKey in resolved)
             {
                 ResolveCall(session, callKey);
+            }
+        }
+
+        private static void ForgetAgentQuestions(SessionState session)
+        {
+            var unseen = new List<string>();
+            foreach (KeyValuePair<string, PendingAttention> pair in session.Pending)
+            {
+                if (pair.Key != MainThread && pair.Value.Status == GlowStatus.Question) unseen.Add(pair.Key);
+            }
+            foreach (string actor in unseen)
+            {
+                session.Pending.Remove(actor);
             }
         }
 
