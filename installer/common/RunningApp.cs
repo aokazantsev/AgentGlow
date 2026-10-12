@@ -64,6 +64,10 @@ namespace AgentGlow
             {
                 return null;
             }
+            catch (NullReferenceException)
+            {
+                return null;
+            }
         }
     }
 }
