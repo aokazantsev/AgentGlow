@@ -125,7 +125,7 @@ namespace AgentGlow.Sources.Claude
                     else ClearAttention(session);
                     break;
                 case "PermissionRequest":
-                    if (hookEvent.CallKey != null) session.OpenPermissionRequests[hookEvent.CallKey] = new PermissionRequestRecord(actor, nowUtc, CommandFingerprint.OfCommand(hookEvent.ShellCommand));
+                    if (hookEvent.CallKey != null && hookEvent.ToolName != AskUserQuestionTool) session.OpenPermissionRequests[hookEvent.CallKey] = new PermissionRequestRecord(actor, nowUtc, CommandFingerprint.OfCommand(hookEvent.ShellCommand));
                     break;
                 case "PostToolUse":
                 case "PostToolUseFailure":
@@ -142,7 +142,7 @@ namespace AgentGlow.Sources.Claude
                     {
                         AddPermissionCandidates(session, nowUtc);
                     }
-                    else if (attention != GlowStatus.Idle)
+                    else if (attention != GlowStatus.Idle && !AsksQuestion(session, actor))
                     {
                         var pending = new PendingAttention(attention, nowUtc);
                         pending.OthersActive = OthersSeenRecently(session, new[] { actor }, nowUtc);
@@ -150,6 +150,12 @@ namespace AgentGlow.Sources.Claude
                     }
                     break;
             }
+        }
+
+        private static bool AsksQuestion(SessionState session, string actor)
+        {
+            PendingAttention pending;
+            return session.Pending.TryGetValue(actor, out pending) && pending.Status == GlowStatus.Question;
         }
 
         private static void AddPermissionCandidates(SessionState session, DateTime nowUtc)
