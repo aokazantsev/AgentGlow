@@ -71,7 +71,7 @@ namespace AgentGlow.Sources.Claude
             }
             var process = request.Context as ProcessIdentity;
             bool changed = tracker.Apply(hookEvent, process, nowUtc);
-            AppLog.Append(LogPrefix + hookEvent.EventName + " " + (hookEvent.NotificationType ?? hookEvent.ToolName ?? "")
+            AppLog.Append(LogPrefix + hookEvent.EventName + " " + (hookEvent.IsAutomaticWake ? "wake" : hookEvent.NotificationType ?? hookEvent.ToolName ?? "")
                 + (hookEvent.EventName == "Stop" ? "bg=" + hookEvent.BackgroundTaskCount : "")
                 + " session=" + ShortId(hookEvent.SessionId)
                 + " pid=" + (process == null ? "?" : process.ProcessId.ToString())

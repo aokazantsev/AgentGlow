@@ -13,6 +13,15 @@ namespace AgentGlow.Sources.Claude
         private const int MaxIdLength = 128;
         private const int MaxNameLength = 256;
         private const int MaxPathLength = 1024;
+        private static readonly string[] AutomaticPromptPrefixes =
+        {
+            "<task-notification>",
+            "<agent-message ",
+            "<side-sessions-event>",
+            "<ci-monitor-event>"
+        };
+        private const string ReminderStart = "<system-reminder>";
+        private const string ReminderEnd = "</system-reminder>";
 
         public static HookEvent Parse(string json)
         {
@@ -29,6 +38,7 @@ namespace AgentGlow.Sources.Claude
             hookEvent.CallKey = CallKey(root, hookEvent);
             hookEvent.ShellCommand = ShellCommand(root, hookEvent);
             hookEvent.AwaitsUserReply = AwaitsUserReply(root, hookEvent);
+            hookEvent.IsAutomaticWake = hookEvent.EventName == "UserPromptSubmit" && IsAutomaticPrompt(Field(root, json, "prompt"));
             if (string.IsNullOrEmpty(hookEvent.SessionId) || string.IsNullOrEmpty(hookEvent.EventName)) return null;
             if (!IsPlain(hookEvent.SessionId, MaxIdLength) || !IsPlain(hookEvent.EventName, MaxNameLength)) return null;
             if (hookEvent.AgentId != null && !IsPlain(hookEvent.AgentId, MaxIdLength)) return null;
@@ -69,6 +79,31 @@ namespace AgentGlow.Sources.Claude
             object blocked;
             Dictionary<string, object> input = ToolInput(root, hookEvent, TurnWrapUpTool);
             return input != null && input.TryGetValue("blocked", out blocked) && IsTrue(blocked);
+        }
+
+        private static bool IsAutomaticPrompt(string prompt)
+        {
+            if (prompt == null) return false;
+            if (StartsWithAutomaticPrefix(prompt, 0)) return true;
+            if (!prompt.StartsWith(ReminderStart, StringComparison.Ordinal)) return false;
+            int end = prompt.IndexOf(ReminderEnd, StringComparison.Ordinal);
+            while (end >= 0)
+            {
+                int position = end + ReminderEnd.Length;
+                while (position < prompt.Length && char.IsWhiteSpace(prompt[position])) position++;
+                if (StartsWithAutomaticPrefix(prompt, position)) return true;
+                end = prompt.IndexOf(ReminderEnd, position, StringComparison.Ordinal);
+            }
+            return false;
+        }
+
+        private static bool StartsWithAutomaticPrefix(string prompt, int start)
+        {
+            foreach (string prefix in AutomaticPromptPrefixes)
+            {
+                if (string.CompareOrdinal(prompt, start, prefix, 0, prefix.Length) == 0) return true;
+            }
+            return false;
         }
 
         private static Dictionary<string, object> ToolInput(Dictionary<string, object> root, HookEvent hookEvent, string toolName)

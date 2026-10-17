@@ -105,7 +105,7 @@ namespace AgentGlow.Sources.Claude
                     ClearAttention(session);
                     break;
                 case "UserPromptSubmit":
-                    session.AwaitsReply = false;
+                    if (!hookEvent.IsAutomaticWake) session.AwaitsReply = false;
                     ForgetActor(session, MainThread);
                     break;
                 case "Stop":

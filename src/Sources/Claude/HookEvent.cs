@@ -13,5 +13,6 @@ namespace AgentGlow.Sources.Claude
         public string AgentId;
         public int BackgroundTaskCount;
         public bool AwaitsUserReply;
+        public bool IsAutomaticWake;
     }
 }
