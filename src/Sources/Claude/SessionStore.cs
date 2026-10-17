@@ -52,6 +52,10 @@ namespace AgentGlow.Sources.Claude
             {
                 return sessions;
             }
+            catch (UnauthorizedAccessException)
+            {
+                return sessions;
+            }
             foreach (string line in lines)
             {
                 SessionState session;
@@ -71,7 +75,7 @@ namespace AgentGlow.Sources.Claude
             long processStart;
             long lastEvent;
             long statusSince;
-            if (!Enum.TryParse(fields[1], out status)) return false;
+            if (!Enum.TryParse(fields[1], out status) || !Enum.IsDefined(typeof(GlowStatus), status)) return false;
             if (!int.TryParse(fields[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out processId)) return false;
             if (!long.TryParse(fields[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out processStart)) return false;
             if (!long.TryParse(fields[5], NumberStyles.Integer, CultureInfo.InvariantCulture, out lastEvent)) return false;

@@ -2,11 +2,11 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 
 [assembly: AssemblyTitle("AgentGlow Setup")]
-[assembly: AssemblyDescription("Установщик AgentGlow. Статус ИИ-агентов (Claude Code, OpenCode и других) на RGB-подсветке через OpenRGB")]
+[assembly: AssemblyDescription("Установщик AgentGlow. Статус ИИ-агентов (Claude Code и других) на RGB-подсветке через OpenRGB")]
 [assembly: AssemblyCompany("aokazantsev")]
 [assembly: AssemblyProduct("AgentGlow")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 aokazantsev. MIT License")]
-[assembly: AssemblyVersion("2.8.0.0")]
-[assembly: AssemblyFileVersion("2.8.0.0")]
-[assembly: AssemblyInformationalVersion("2.8")]
+[assembly: AssemblyVersion("3.0.0.0")]
+[assembly: AssemblyFileVersion("3.0.0.0")]
+[assembly: AssemblyInformationalVersion("3.0")]
 [assembly: ComVisible(false)]

@@ -82,7 +82,17 @@ namespace AgentGlow
         private static LinkLabel Link(string text, string url)
         {
             var link = new LinkLabel { Text = text, AutoSize = true, Margin = new Padding(3, 2, 3, 2) };
-            link.LinkClicked += (sender, e) => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            link.LinkClicked += (sender, e) =>
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo(SystemTools.Explorer, "\"" + url + "\"") { UseShellExecute = false });
+                }
+                catch (System.ComponentModel.Win32Exception)
+                {
+                    MessageBox.Show("Не удалось открыть " + url + " — открой адрес в браузере вручную.", AppIdentity.Name, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            };
             return link;
         }
 

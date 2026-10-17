@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -30,7 +31,6 @@ namespace AgentGlow
 
         public static UpdateRelease FetchLatest()
         {
-            ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
             string url = ApiPrefix + AppIdentity.GitHubUrl.Substring(GitHubPrefix.Length) + "/releases/latest";
             HttpWebRequest request = CreateRequest(url, RequestTimeoutMs);
             request.Accept = "application/vnd.github+json";
@@ -40,20 +40,49 @@ namespace AgentGlow
             {
                 json = reader.ReadToEnd();
             }
+            return ParseLatest(json);
+        }
+
+        public static UpdateRelease ParseLatest(string json)
+        {
             Match tag = Regex.Match(json, "\"tag_name\"\\s*:\\s*\"(v?[0-9][0-9.]*)\"");
             if (!tag.Success) throw new InvalidDataException("в ответе GitHub нет номера версии");
             string assetName = AppIdentity.Name + "Setup.exe";
-            Match asset = Regex.Match(json, "\"size\"\\s*:\\s*([0-9]+)[^{}]*?\"browser_download_url\"\\s*:\\s*\"([^\"]*/" + Regex.Escape(assetName) + ")\"");
+            Match asset = Regex.Match(json, "\"size\"\\s*:\\s*([0-9]+)[^{}]*?(?:\"digest\"\\s*:\\s*\"sha256:([0-9a-fA-F]{64})\"[^{}]*?)?\"browser_download_url\"\\s*:\\s*\"([^\"]*/" + Regex.Escape(assetName) + ")\"");
             if (!asset.Success) throw new InvalidDataException("в последнем релизе нет файла " + assetName);
-            return new UpdateRelease(tag.Groups[1].Value.TrimStart('v', 'V'), asset.Groups[2].Value,
-                long.Parse(asset.Groups[1].Value, CultureInfo.InvariantCulture));
+            return new UpdateRelease(tag.Groups[1].Value.TrimStart('v', 'V'), asset.Groups[3].Value,
+                long.Parse(asset.Groups[1].Value, CultureInfo.InvariantCulture),
+                asset.Groups[2].Success ? asset.Groups[2].Value.ToLowerInvariant() : null);
+        }
+
+        public static void Verify(string path, UpdateRelease release)
+        {
+            string problem = null;
+            if (release.Size > 0 && new FileInfo(path).Length != release.Size) problem = "файл скачался не полностью";
+            else if (release.Sha256 != null && Sha256Of(path) != release.Sha256) problem = "контрольная сумма скачанного файла не совпала с опубликованной на GitHub";
+            if (problem == null) return;
+            File.Delete(path);
+            throw new IOException(problem);
+        }
+
+        public static string Sha256Of(string path)
+        {
+            using (FileStream stream = File.OpenRead(path))
+            using (SHA256 hash = SHA256.Create())
+            {
+                return BitConverter.ToString(hash.ComputeHash(stream)).Replace("-", "").ToLowerInvariant();
+            }
+        }
+
+        public static string InstallerPath(string downloadsDirectory, string versionText)
+        {
+            return Path.Combine(Path.Combine(downloadsDirectory, AppIdentity.Name + "-" + versionText), AppIdentity.Name + "Setup.exe");
         }
 
         public static string Download(UpdateRelease release)
         {
-            string folder = DownloadsDirectory();
-            Directory.CreateDirectory(folder);
-            string target = Path.Combine(folder, AppIdentity.Name + "Setup-" + release.VersionText + ".exe");
+            string target = InstallerPath(DownloadsDirectory(), release.VersionText);
+            Directory.CreateDirectory(Path.GetDirectoryName(target));
             string partial = target + ".part";
             HttpWebRequest request = CreateRequest(release.DownloadUrl, DownloadTimeoutMs);
             using (var response = (HttpWebResponse)request.GetResponse())
@@ -62,11 +91,7 @@ namespace AgentGlow
             {
                 source.CopyTo(output, BufferSize);
             }
-            if (release.Size > 0 && new FileInfo(partial).Length != release.Size)
-            {
-                File.Delete(partial);
-                throw new IOException("файл скачался не полностью");
-            }
+            Verify(partial, release);
             if (File.Exists(target)) File.Delete(target);
             File.Move(partial, target);
             return target;

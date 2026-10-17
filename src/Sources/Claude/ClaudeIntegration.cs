@@ -2,11 +2,6 @@ namespace AgentGlow.Sources.Claude
 {
     internal sealed class ClaudeIntegration : IIntegration
     {
-        public string Id
-        {
-            get { return "claude"; }
-        }
-
         public string OptionText
         {
             get { return "Claude Code: прописать хуки"; }

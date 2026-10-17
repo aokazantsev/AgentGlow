@@ -11,13 +11,14 @@ namespace AgentGlow
 
         public static bool IsUninstalling()
         {
-            string workerPrefix = AppIdentity.Name + "Uninstall-";
             string installed = UninstallRegistration.InstalledLocation();
+            int self = Process.GetCurrentProcess().Id;
             foreach (Process process in Process.GetProcesses())
             {
                 using (process)
                 {
-                    if (process.ProcessName.StartsWith(workerPrefix, StringComparison.OrdinalIgnoreCase)) return true;
+                    if (process.Id == self) continue;
+                    if (process.ProcessName.StartsWith(InstallFolder.UninstallWorkerPrefix, StringComparison.OrdinalIgnoreCase)) return true;
                     if (installed == null || !string.Equals(process.ProcessName, "Uninstall", StringComparison.OrdinalIgnoreCase)) continue;
                     string path = PathOf(process);
                     if (path != null && string.Equals(Path.GetDirectoryName(path).TrimEnd('\\'), installed.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) return true;
@@ -40,7 +41,7 @@ namespace AgentGlow
                     }
                     catch (Win32Exception)
                     {
-                        stoppedAll = false;
+                        if (!process.WaitForExit(ExitWaitMs)) stoppedAll = false;
                     }
                     catch (InvalidOperationException)
                     {

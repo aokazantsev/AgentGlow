@@ -9,6 +9,8 @@ namespace AgentGlow
 {
     internal static class JsonText
     {
+        private static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
         private const string Indent = "  ";
 
         public static Dictionary<string, object> ParseObject(string text)
@@ -56,6 +58,12 @@ namespace AgentGlow
             if (list != null)
             {
                 WriteArray(builder, list, depth);
+                return;
+            }
+            if (value is DateTime)
+            {
+                long milliseconds = (long)(((DateTime)value).ToUniversalTime() - UnixEpoch).TotalMilliseconds;
+                builder.Append("\"\\/Date(").Append(milliseconds.ToString(CultureInfo.InvariantCulture)).Append(")\\/\"");
                 return;
             }
             builder.Append(Convert.ToString(value, CultureInfo.InvariantCulture));

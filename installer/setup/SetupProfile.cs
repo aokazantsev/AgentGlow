@@ -12,6 +12,10 @@ namespace AgentGlow
         private const string ResetSettingsKey = "resetSettings";
         private const string OpenRgbPath = @"C:\Program Files\OpenRGB\OpenRGB.exe";
 
+        private const string StoppedHint = "AgentGlow, если был запущен, остановлен: повтори установку, когда исправишь причину.";
+
+        private static AppSettings pendingSettings;
+
         public const string Intro =
             "Подсветка RGB-устройств показывает, что делают ИИ-агенты: работают, закончили, ждут ответа или "
             + "разрешения. Глянул на подсветку — понял, нужно ли разворачивать окно.";
@@ -41,6 +45,7 @@ namespace AgentGlow
                     Checked = false
                 }
             };
+            AppSettings current = AppSettings.FileExists ? AppSettings.Load() : null;
             foreach (SourceCatalog.Entry entry in SourceCatalog.All)
             {
                 if (entry.Integration == null) continue;
@@ -49,23 +54,23 @@ namespace AgentGlow
                     Key = SourceKeyPrefix + entry.Id,
                     Text = entry.Integration.OptionText,
                     Hint = entry.Integration.OptionHint,
-                    Checked = true
+                    Checked = current == null || current.ReadError != null || current.IsSourceEnabled(entry.Id)
                 });
             }
             options.Add(new SetupOption
             {
                 Key = CrashReportConsent.OptionKey,
                 Text = "Отправлять автору отчёты о сбоях",
-                Hint = "В отчёт попадает журнал программы, а в нём — пути к настройкам Claude Code и плагину OpenCode с именем "
-                    + "пользователя Windows и названия RGB-устройств. Не включай, если это запрещают правила твоей компании.",
+                Hint = "В отчёт попадает журнал программы, а в нём — имя пользователя и домена Windows, пути к программе и "
+                    + "настройкам Claude Code и названия RGB-устройств. Не включай, если это запрещают правила твоей компании.",
                 DetailsTitle = "Что уходит в отчёте",
                 Details = "Отчёт уходит один раз — при падении программы — на aokazantsev.ru (сервер в России), "
                     + "без повторных попыток:\n"
                     + "• версия программы, Windows и .NET;\n"
-                    + "• текст ошибки;\n"
-                    + "• последние 100 КБ журнала %LOCALAPPDATA%\\AgentGlow\\log.txt: названия событий и инструментов агентов, "
-                    + "короткие номера сессий и процессов, имена папок проектов, пути к настройкам Claude Code и плагину OpenCode, "
-                    + "названия RGB-устройств;\n"
+                    + "• время и текст ошибки;\n"
+                    + "• последние 100 КБ журнала %LOCALAPPDATA%\\AgentGlow\\log.txt: имя пользователя и домена Windows, названия событий и инструментов агентов, "
+                    + "короткие номера сессий и процессов, названия приложений и статусы, присланные на /status, пути к программе, "
+                    + "её данным, настройкам Claude Code и скачанному обновлению, тексты ошибок программы, названия RGB-устройств;\n"
                     + "• IP-адрес, с которого пришёл отчёт.\n"
                     + "Тексты запросов, ответы и код агентов в журнал не попадают. Отчёты видит только автор, хранятся последние 50 МБ. "
                     + "Изменить выбор — переустановить программу.",
@@ -76,18 +81,24 @@ namespace AgentGlow
 
         public static void BeforeExtract(InstallRequest request, Action<int, string> report, List<string> notes)
         {
-            if (request.Has(ResetSettingsKey))
-            {
-                string settingsPath = Path.Combine(AppIdentity.DataDirectory, "settings.txt");
-                if (File.Exists(settingsPath)) File.Delete(settingsPath);
-                SetupLog.Append("settings reset");
-            }
+            bool reset = request.Has(ResetSettingsKey);
+            SetupLog.Append("reset settings: " + reset);
+            if (!reset) report(5, "Читаю настройки…");
+            AppSettings settings = reset ? new AppSettings() : AppSettings.LoadPatiently(SetupLog.Append);
+            if (settings.ReadError != null) throw new InvalidOperationException("Не удалось прочитать настройки " + AppSettings.FilePath + ": " + settings.ReadError.TrimEnd('.') + ". " + settings.ReadAdvice + " " + StoppedHint);
+            pendingSettings = settings;
             CrashReportConsent.Set(request.Has(CrashReportConsent.OptionKey));
             SetupLog.Append("crash reports: " + request.Has(CrashReportConsent.OptionKey));
         }
 
         public static void AfterExtract(InstallRequest request, Action<int, string> report, List<string> notes)
         {
+            report(80, "Настройки…");
+            AppSettings settings = pendingSettings;
+            settings.EnabledSources = EnabledSources(request);
+            string saveProblem = settings.Save();
+            if (saveProblem != null) throw new InvalidOperationException("Не удалось записать настройки в " + AppSettings.FilePath + ": " + saveProblem.TrimEnd('.') + ". " + StoppedHint);
+            SetupLog.Append("sources: " + string.Join(",", settings.EnabledSources.ToArray()));
             if (OpenRgbService.IsInstalled())
             {
                 report(82, "Задача перезапуска OpenRGB…");
@@ -95,10 +106,12 @@ namespace AgentGlow
                 SetupLog.Append("openrgb restart task: " + (problem ?? "installed"));
                 if (problem != null) notes.Add("Задачу перезапуска зависшего OpenRGB создать не удалось (" + problem + "): AgentGlow будет просить права администратора.");
             }
-            AppSettings settings = AppSettings.Load();
-            settings.EnabledSources = EnabledSources(request);
-            if (!settings.TrySave()) notes.Add("Не удалось записать settings.txt — источники событий остались прежними.");
-            SetupLog.Append("sources: " + string.Join(",", settings.EnabledSources.ToArray()));
+            else
+            {
+                report(82, "Задача перезапуска OpenRGB…");
+                string problem = OpenRgbService.RemoveRestartTask();
+                SetupLog.Append("openrgb restart task without service: " + (problem ?? "absent or removed"));
+            }
             report(85, "Интеграции…");
             foreach (SourceCatalog.Entry entry in SourceCatalog.All)
             {
@@ -107,9 +120,13 @@ namespace AgentGlow
             }
         }
 
+        public static void AfterLaunch(InstallRequest request, Action<int, string> report, List<string> notes)
+        {
+        }
+
         public static void Launch(string executable)
         {
-            Process.Start(new ProcessStartInfo("explorer.exe", "\"" + executable + "\"") { UseShellExecute = false });
+            Process.Start(new ProcessStartInfo(SystemTools.Explorer, "\"" + executable + "\"") { UseShellExecute = false });
         }
 
         private static List<string> EnabledSources(InstallRequest request)

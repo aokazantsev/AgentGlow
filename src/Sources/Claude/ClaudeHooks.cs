@@ -234,7 +234,12 @@ namespace AgentGlow.Sources.Claude
         {
             string path = SettingsPath;
             Directory.CreateDirectory(Path.GetDirectoryName(path));
-            if (File.Exists(path) && !File.Exists(path + BackupSuffix)) File.Copy(path, path + BackupSuffix);
+            if (File.Exists(path))
+            {
+                string backup = path + BackupSuffix;
+                if (File.Exists(backup)) File.SetAttributes(backup, FileAttributes.Normal);
+                File.Copy(path, backup, true);
+            }
             File.WriteAllText(path, JsonText.Write(root), new UTF8Encoding(false));
         }
     }

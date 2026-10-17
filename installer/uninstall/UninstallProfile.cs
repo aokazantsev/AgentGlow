@@ -6,7 +6,7 @@ namespace AgentGlow
     internal static class UninstallProfile
     {
         public const string ConfirmDetails =
-            "Хуки Claude Code и плагин OpenCode, которые поставил AgentGlow, будут сняты; чужие хуки, плагины и остальные настройки останутся.";
+            "Хуки Claude Code, которые поставил AgentGlow, будут сняты; чужие хуки и остальные настройки останутся.";
 
         public static void Remove(List<string> problems)
         {
@@ -32,6 +32,7 @@ namespace AgentGlow
             try
             {
                 AppSettings settings = AppSettings.Load();
+                if (settings.ReadError != null) return;
                 using (var lighting = new LightingController())
                 {
                     lighting.Configure(settings.DeviceNames, settings.FixedDeviceNames, null);

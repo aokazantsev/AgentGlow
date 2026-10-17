@@ -255,18 +255,6 @@ namespace AgentGlow
             }
         }
 
-        public void RestoreOriginals()
-        {
-            if (client == null) return;
-            foreach (RgbController controller in Targets())
-            {
-                if (!Send(controller, null)) return;
-            }
-            applied = null;
-            appliedSecondary = null;
-            animation = null;
-        }
-
         public void Dispose()
         {
             Drop();

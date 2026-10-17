@@ -10,6 +10,7 @@ namespace AgentGlow
     internal sealed class EventListener : IDisposable
     {
         public const string MarkerHeader = "X-AgentGlow: 1";
+        private const string OriginHeader = "origin:";
 
         private const int MaxHeaderBytes = 16 * 1024;
         private const int DrainBytes = 64 * 1024;
@@ -33,6 +34,7 @@ namespace AgentGlow
         private readonly int port;
         private readonly SourceSet sources;
         private readonly Action<IAgentSource, EventRequest> onRequest;
+        private bool browserRejectionLogged;
         private volatile bool stopped;
 
         public EventListener(int port, SourceSet sources, Action<IAgentSource, EventRequest> onRequest)
@@ -95,9 +97,7 @@ namespace AgentGlow
             {
                 try
                 {
-                    IAgentSource source;
-                    EventRequest request = TryReceive(client, out source);
-                    if (request != null) onRequest(source, request);
+                    Receive(client);
                 }
                 catch (Exception error)
                 {
@@ -106,32 +106,32 @@ namespace AgentGlow
             }
         }
 
-        private EventRequest TryReceive(TcpClient client, out IAgentSource source)
+        private void Receive(TcpClient client)
         {
-            source = null;
             try
             {
                 client.ReceiveTimeout = SocketTimeoutMs;
                 client.SendTimeout = SocketTimeoutMs;
                 NetworkStream stream = client.GetStream();
                 byte[] response = NoContentResponse;
+                IAgentSource source;
                 EventRequest request = ReadRequest(stream, (IPEndPoint)client.Client.RemoteEndPoint, out source, out response);
-                if (request != null) source.OnReceive(request);
+                if (request != null)
+                {
+                    source.OnReceive(request);
+                    onRequest(source, request);
+                }
                 stream.Write(response, 0, response.Length);
                 if (request == null) DrainAndClose(client, stream);
-                return request;
             }
             catch (IOException)
             {
-                return null;
             }
             catch (SocketException)
             {
-                return null;
             }
             catch (ObjectDisposedException)
             {
-                return null;
             }
         }
 
@@ -185,6 +185,14 @@ namespace AgentGlow
                 response = NotFoundResponse;
                 return null;
             }
+            if (!source.RequiresMarker && HasHeader(headers, OriginHeader))
+            {
+                if (!browserRejectionLogged) AppLog.Append("event rejected: request from a browser page (Origin header) to " + route);
+                browserRejectionLogged = true;
+                source = null;
+                response = ForbiddenResponse;
+                return null;
+            }
             if (!HasAllowedHost(headers) || (source.RequiresMarker && !headers.Contains(MarkerHeader.ToLowerInvariant())))
             {
                 source = null;
@@ -206,7 +214,7 @@ namespace AgentGlow
                 response = BadRequestResponse;
                 return null;
             }
-            return new EventRequest { Route = route, Body = body, Client = remote, Port = port };
+            return new EventRequest { Body = body, Client = remote, Port = port };
         }
 
         private static string RouteOf(string headers)
@@ -218,6 +226,15 @@ namespace AgentGlow
             string target = parts[1];
             int query = target.IndexOf('?');
             return query >= 0 ? target.Substring(0, query) : target;
+        }
+
+        private static bool HasHeader(string headers, string name)
+        {
+            foreach (string line in headers.Split(new[] { "\r\n" }, StringSplitOptions.None))
+            {
+                if (line.StartsWith(name, StringComparison.Ordinal)) return true;
+            }
+            return false;
         }
 
         private bool HasAllowedHost(string headers)

@@ -19,6 +19,7 @@ namespace AgentGlow
         private readonly ProgressBar progress = new ProgressBar();
         private readonly Label status = new Label();
         private readonly Button installButton = new Button();
+        private bool installing;
 
         public SetupForm()
         {
@@ -52,7 +53,7 @@ namespace AgentGlow
             folderRow.Controls.Add(folderBox);
             folderRow.Controls.Add(browseButton);
             layout.Controls.Add(folderRow);
-            layout.Controls.Add(Hint("Удаление стирает эту папку целиком, поэтому подойдёт пустая папка или папка прежней установки."));
+            layout.Controls.Add(Hint("Удаление убирает из папки только файлы программы, а саму папку — если в ней ничего не осталось. Подойдёт пустая папка или папка прежней установки."));
 
             List<SetupField> fields = SetupProfile.Fields();
             if (fields.Count > 0) layout.Controls.Add(Section("Настройки"));
@@ -85,7 +86,7 @@ namespace AgentGlow
                 if (option.Details != null) AddDetails(layout, option);
             }
             autostartBox.Text = "Запускать при входе в Windows";
-            autostartBox.Checked = true;
+            autostartBox.Checked = UninstallRegistration.InstalledLocation() == null || Autostart.IsEnabled();
             autostartBox.AutoSize = true;
             autostartBox.Margin = new Padding(0, 4, 0, 0);
             layout.Controls.Add(autostartBox);
@@ -167,6 +168,7 @@ namespace AgentGlow
                 if (pair.Value.Enabled && pair.Value.Checked) request.CheckedOptions.Add(pair.Key.Key);
             }
             foreach (KeyValuePair<SetupField, ComboBox> pair in fieldBoxes) request.Values[pair.Key.Key] = pair.Value.Text.Trim();
+            installing = true;
             SetEditable(false);
             var installation = new Installation(request, Report);
             var worker = new Thread(() =>
@@ -205,10 +207,23 @@ namespace AgentGlow
             }));
         }
 
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (installing && e.CloseReason == CloseReason.UserClosing)
+            {
+                e.Cancel = true;
+                status.Text = "Дождись окончания установки…";
+                return;
+            }
+            base.OnFormClosing(e);
+        }
+
         private void Finish(Installation installation, Exception failure)
         {
+            installing = false;
             if (failure != null)
             {
+                SetupLog.Append("failed: " + failure);
                 status.Text = "Ошибка: " + failure.Message;
                 SetEditable(true);
                 MessageBox.Show(this, failure.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);

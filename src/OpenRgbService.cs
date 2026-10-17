@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Management;
 using System.Security;
@@ -21,9 +22,12 @@ namespace AgentGlow
         private const int RestartTimeoutMs = 60 * 1000;
         private const int StatusPollMs = 1000;
         private const int CancelledByUser = 1223;
+        private const int TaskNotFound = 1;
+        private const string RestartResultFile = "openrgb-restart.txt";
         private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(10);
         private static readonly TimeSpan KillTimeout = TimeSpan.FromSeconds(15);
         private static readonly TimeSpan StartTimeout = TimeSpan.FromSeconds(30);
+        private static readonly TimeSpan TaskResultTimeout = TimeSpan.FromMinutes(2);
 
         public static bool IsInstalled()
         {
@@ -50,6 +54,24 @@ namespace AgentGlow
         }
 
         public static int RestartNow()
+        {
+            int code = Restart();
+            try
+            {
+                File.WriteAllText(UserDataPaths.File(RestartResultFile), code.ToString(CultureInfo.InvariantCulture));
+            }
+            catch (IOException error)
+            {
+                AppLog.Append("openrgb restart: result not written: " + error.Message);
+            }
+            catch (UnauthorizedAccessException error)
+            {
+                AppLog.Append("openrgb restart: result not written: " + error.Message);
+            }
+            return code;
+        }
+
+        private static int Restart()
         {
             try
             {
@@ -96,24 +118,82 @@ namespace AgentGlow
                 int code = RunSchtasks("/Create /TN \"" + RestartTaskName + "\" /XML \"" + definitionPath + "\" /F");
                 return code == 0 ? null : "schtasks вернул код " + code;
             }
+            catch (IOException error)
+            {
+                return error.Message;
+            }
+            catch (UnauthorizedAccessException error)
+            {
+                return error.Message;
+            }
             finally
             {
-                File.Delete(definitionPath);
+                try
+                {
+                    File.Delete(definitionPath);
+                }
+                catch (IOException)
+                {
+                }
+                catch (UnauthorizedAccessException)
+                {
+                }
             }
         }
 
         public static string RemoveRestartTask()
         {
-            if (!HasRestartTask()) return null;
+            if (RunSchtasks("/Query /TN \"" + RestartTaskName + "\"") == TaskNotFound) return null;
             int code = RunSchtasks("/Delete /TN \"" + RestartTaskName + "\" /F");
             return code == 0 ? null : "schtasks вернул код " + code;
         }
 
         public static string RestartWithTask()
         {
+            string resultPath = UserDataPaths.File(RestartResultFile);
+            DeleteQuietly(resultPath);
             int code = RunSchtasks("/Run /TN \"" + RestartTaskName + "\"");
             if (code != 0) return "задача перезапуска не запустилась, schtasks вернул код " + code;
-            return WaitUntilRunning();
+            DateTime deadline = DateTime.UtcNow + TaskResultTimeout;
+            while (DateTime.UtcNow < deadline)
+            {
+                string result = ReadResult(resultPath);
+                if (result != null) return result == "0" ? WaitUntilRunning() : "перезапуск не удался, подробности в журнале";
+                Thread.Sleep(StatusPollMs);
+            }
+            return "задача перезапуска не ответила за " + (int)TaskResultTimeout.TotalSeconds + " с";
+        }
+
+        private static string ReadResult(string path)
+        {
+            try
+            {
+                if (!File.Exists(path)) return null;
+                string text = File.ReadAllText(path).Trim();
+                return text.Length == 0 ? null : text;
+            }
+            catch (IOException)
+            {
+                return null;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return null;
+            }
+        }
+
+        private static void DeleteQuietly(string path)
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
         }
 
         public static string RestartElevated(string executablePath)
@@ -158,9 +238,22 @@ namespace AgentGlow
                         int processId = Convert.ToInt32(service["ProcessId"]);
                         if (processId == 0) continue;
                         AppLog.Append("openrgb restart: service did not stop, killing process " + processId);
-                        using (Process process = Process.GetProcessById(processId))
+                        try
                         {
-                            process.Kill();
+                            using (Process process = Process.GetProcessById(processId))
+                            {
+                                process.Kill();
+                            }
+                        }
+                        catch (ArgumentException)
+                        {
+                        }
+                        catch (InvalidOperationException)
+                        {
+                        }
+                        catch (Win32Exception error)
+                        {
+                            AppLog.Append("openrgb restart: kill failed: " + error.Message);
                         }
                     }
                 }
@@ -210,7 +303,7 @@ namespace AgentGlow
 
         private static int RunSchtasks(string arguments)
         {
-            var start = new ProcessStartInfo("schtasks.exe", arguments)
+            var start = new ProcessStartInfo(SystemTools.Schtasks, arguments)
             {
                 UseShellExecute = false,
                 CreateNoWindow = true,
@@ -220,7 +313,18 @@ namespace AgentGlow
             {
                 using (Process process = Process.Start(start))
                 {
-                    return process.WaitForExit(CommandTimeoutMs) ? process.ExitCode : -1;
+                    if (process.WaitForExit(CommandTimeoutMs)) return process.ExitCode;
+                    try
+                    {
+                        process.Kill();
+                    }
+                    catch (Win32Exception)
+                    {
+                    }
+                    catch (InvalidOperationException)
+                    {
+                    }
+                    return -1;
                 }
             }
             catch (Win32Exception)

@@ -34,6 +34,8 @@ namespace AgentGlow
 
             SetupProfile.BeforeExtract(request, report, notes);
             report(10, "Распаковка файлов…");
+            string previous = UninstallRegistration.InstalledLocation();
+            string token = InstallFolder.Mark(target);
             long size = Payload.Extract(target, report, 10, 75);
             SetupProfile.AfterExtract(request, report, notes);
 
@@ -46,10 +48,36 @@ namespace AgentGlow
             if (autostartProblem != null) notes.Add(autostartProblem);
             SetupLog.Append("autostart " + (request.EnablesAutostart ? "enable" : "disable") + ": problem=" + (autostartProblem ?? "none") + ", enabled now=" + Autostart.IsEnabled());
 
+            RemovePreviousLocation(previous, token);
             report(97, "Запуск…");
             SetupProfile.Launch(executable);
             SetupLog.Append("launched " + executable);
+            SetupProfile.AfterLaunch(request, report, notes);
             report(100, "Готово.");
+        }
+
+        private void RemovePreviousLocation(string previous, string token)
+        {
+            if (previous == null || !Directory.Exists(previous)) return;
+            if (!InstallFolder.IsOurs(previous) || InstallFolder.HasMark(previous, token))
+            {
+                SetupLog.Append("previous location kept: " + previous);
+                return;
+            }
+            try
+            {
+                bool removed = InstallFolder.RemoveProgramFiles(previous, AppIdentity.ExecutableName, AppIdentity.PayloadFiles);
+                SetupLog.Append("previous location cleaned: " + previous + ", removed=" + removed);
+                if (!removed) notes.Add("Из прежней папки программы " + previous + " убраны файлы " + AppIdentity.Name + ", остальные файлы в ней не тронуты.");
+            }
+            catch (IOException error)
+            {
+                notes.Add("Прежняя папка программы " + previous + " удалена не полностью (" + error.Message + ") — удали из неё вручную оставшиеся файлы " + AppIdentity.Name + ", а не запуском Uninstall.exe в ней: он удалит и новую установку.");
+            }
+            catch (UnauthorizedAccessException error)
+            {
+                notes.Add("Прежняя папка программы " + previous + " удалена не полностью (" + error.Message + ") — удали из неё вручную оставшиеся файлы " + AppIdentity.Name + ", а не запуском Uninstall.exe в ней: он удалит и новую установку.");
+            }
         }
     }
 }

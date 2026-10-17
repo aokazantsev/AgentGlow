@@ -41,6 +41,7 @@ namespace AgentGlow
         private SourceSet sources;
         private AppSettings settings;
         private EventListener listener;
+        private readonly int eventPort;
         private StatusEffect previewEffect;
         private bool repairBlinkOn;
         private bool paused;
@@ -54,15 +55,15 @@ namespace AgentGlow
         private DateTime lastLaunchAttemptUtc = DateTime.MinValue;
         private SettingsForm settingsForm;
 
-        public TrayApplication()
+        public TrayApplication(AppSettings loaded)
         {
-            AppLog.Append("start " + AppIdentity.Version + ", user=" + Environment.UserDomainName + "\\" + Environment.UserName
-                + ", os=" + Environment.OSVersion.VersionString + ", exe=" + Application.ExecutablePath);
             bool firstRun = !AppSettings.FileExists;
-            settings = AppSettings.Load();
+            settings = loaded;
+            eventPort = loaded.EventPort;
             if (firstRun)
             {
-                settings.TrySave();
+                string saveProblem = settings.Save();
+                if (saveProblem != null) AppLog.Append("settings not saved: " + saveProblem);
             }
             AppLog.Append("settings: first run=" + firstRun + ", event port=" + settings.EventPort
                 + ", sources=" + string.Join(",", settings.EnabledSources.ToArray())
@@ -157,16 +158,16 @@ namespace AgentGlow
 
         private void StartListener()
         {
-            listener = new EventListener(settings.EventPort, sources, OnSourceRequest);
+            listener = new EventListener(eventPort, sources, OnSourceRequest);
             try
             {
                 listener.Start();
-                AppLog.Append("event listener on 127.0.0.1:" + settings.EventPort);
+                AppLog.Append("event listener on 127.0.0.1:" + eventPort);
             }
             catch (SocketException exception)
             {
                 listener = null;
-                string message = "Порт " + settings.EventPort + " занят, события приложений не принимаются: " + exception.Message;
+                string message = "Порт " + eventPort + " занят, события приложений не принимаются: " + exception.Message;
                 AppLog.Append(message);
                 trayIcon.ShowBalloonTip(5000, AppTitle, message, ToolTipIcon.Warning);
             }
@@ -215,7 +216,7 @@ namespace AgentGlow
             else if (paused) lighting.Apply(ParkedEffect(), null);
             else if (IsDark()) lighting.Apply(DarkEffect, null);
             else lighting.Apply(settings.EffectFor(sources.TopStatus), SecondaryEffect());
-            dark = previewEffect == null && !paused && IsDark();
+            dark = ShowsDark();
             if (!lighting.IsConnected) reconnectTimer.Start();
             UpdateAnimationTimer();
             UpdateTrayIcon();
@@ -245,6 +246,11 @@ namespace AgentGlow
         private StatusEffect SecondaryEffect()
         {
             return IsSplit() ? settings.EffectFor(GlowStatus.Working) : null;
+        }
+
+        private bool ShowsDark()
+        {
+            return previewEffect == null && !paused && IsDark();
         }
 
         private bool IsDark()
@@ -294,7 +300,7 @@ namespace AgentGlow
             foreach (IAgentSource source in sources.All)
             {
                 if (source.Integration == null) continue;
-                integrationInstalled[source.Id] = source.Integration.IsInstalled(settings.EventPort);
+                integrationInstalled[source.Id] = source.Integration.IsInstalled(eventPort);
             }
         }
 
@@ -352,7 +358,7 @@ namespace AgentGlow
             IIntegration integration = source.Integration;
             try
             {
-                integration.Install(settings.EventPort);
+                integration.Install(eventPort);
                 integrationInstalled[source.Id] = true;
                 UpdateTrayIcon();
                 AppLog.Append(source.DisplayName + " integration installed into " + integration.Location);
@@ -400,9 +406,11 @@ namespace AgentGlow
             StopPreview();
             if (form.DialogResult != DialogResult.OK) return;
             settings = form.Result;
-            if (!settings.TrySave())
+            string saveProblem = settings.Save();
+            if (saveProblem != null)
             {
-                MessageBox.Show("Не удалось сохранить settings.txt", AppTitle, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AppLog.Append("settings not saved: " + saveProblem);
+                MessageBox.Show("Не удалось сохранить " + AppSettings.FilePath + ": " + saveProblem, AppTitle, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             lighting.Configure(settings.DeviceNames, settings.FixedDeviceNames, settings.FixedEffect);
             sources.Housekeep(DateTime.UtcNow, settings);
@@ -452,8 +460,17 @@ namespace AgentGlow
         private void OnLogClick(object sender, EventArgs e)
         {
             if (!System.IO.File.Exists(AppLog.FilePath)) AppLog.Append("log created");
-            using (Process.Start("notepad.exe", "\"" + AppLog.FilePath + "\""))
+            try
             {
+                using (Process.Start(SystemTools.Notepad, "\"" + AppLog.FilePath + "\""))
+                {
+                }
+            }
+            catch (System.ComponentModel.Win32Exception error)
+            {
+                AppLog.Append("notepad failed: " + error.Message);
+                MessageBox.Show("Не удалось открыть Блокнот: " + error.Message + Environment.NewLine + "Журнал лежит в " + AppLog.FilePath,
+                    AppTitle, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
 
@@ -488,7 +505,7 @@ namespace AgentGlow
         private string AppProblem()
         {
             if (!lighting.IsConnected) return "OpenRGB: " + OpenRgbText();
-            if (listener == null) return "порт " + settings.EventPort + " занят — события не приходят";
+            if (listener == null) return "порт " + eventPort + " занят — события не приходят";
             foreach (IAgentSource source in sources.All)
             {
                 bool installed;
@@ -552,7 +569,7 @@ namespace AgentGlow
             RefreshIntegrationStatus();
             bool changed = sources.Housekeep(DateTime.UtcNow, settings);
             UpdateLivenessTimer();
-            if (IsDark() != dark)
+            if (ShowsDark() != dark)
             {
                 AppLog.Append(dark ? "lights on" : "lights off: no events for " + settings.DarkAfterMinutes + " min");
                 changed = true;

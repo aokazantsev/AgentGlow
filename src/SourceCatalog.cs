@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using AgentGlow.Sources.Claude;
 using AgentGlow.Sources.Generic;
-using AgentGlow.Sources.OpenCode;
 
 namespace AgentGlow
 {
@@ -27,7 +26,6 @@ namespace AgentGlow
         public static readonly Entry[] All =
         {
             new Entry("claude", "Claude Code", new ClaudeIntegration(), () => new ClaudeSource()),
-            new Entry("opencode", "OpenCode", new OpenCodeIntegration(), () => new OpenCodeSource()),
             new Entry("generic", "Другие приложения", null, () => new GenericSource())
         };
 

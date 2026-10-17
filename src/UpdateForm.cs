@@ -15,7 +15,9 @@ namespace AgentGlow
         private readonly Label status = new Label();
         private readonly TextBox pathBox = new TextBox();
         private readonly FlowLayoutPanel fileButtons = new FlowLayoutPanel();
+        private readonly Button installNow = new Button();
         private string downloadedPath;
+        private UpdateRelease downloadedRelease;
 
         public static void ShowSingle()
         {
@@ -60,10 +62,14 @@ namespace AgentGlow
             fileButtons.AutoSize = true;
             fileButtons.Visible = false;
             fileButtons.Margin = new Padding(0, 6, 0, 0);
+            installNow.Text = "Установить сейчас";
+            installNow.AutoSize = true;
+            installNow.Click += (sender, e) => InstallNow();
+            fileButtons.Controls.Add(installNow);
             var openFolder = new Button { Text = "Открыть папку", AutoSize = true };
             openFolder.Click += (sender, e) => ShowInExplorer(downloadedPath);
             var copyPath = new Button { Text = "Скопировать путь", AutoSize = true };
-            copyPath.Click += (sender, e) => Clipboard.SetText(downloadedPath);
+            copyPath.Click += (sender, e) => CopyPath();
             fileButtons.Controls.Add(openFolder);
             fileButtons.Controls.Add(copyPath);
             layout.Controls.Add(fileButtons);
@@ -94,9 +100,12 @@ namespace AgentGlow
                 }
                 Report("Есть версия " + release.VersionText + ", скачиваю установщик (" + (release.Size / 1024 / 1024.0).ToString("0.0") + " МБ)…", null);
                 string path = UpdateChecker.Download(release);
-                AppLog.Append("update downloaded: " + path);
-                Report("Скачана версия " + release.VersionText + ". Запусти установщик — он поставит её поверх текущей, настройки сохранятся. "
-                    + "Папка с установщиком открыта в Проводнике; если окно не появилось — кнопка «Открыть папку».", path);
+                downloadedRelease = release;
+                AppLog.Append("update downloaded: " + path + (release.Sha256 != null ? ", sha256 verified" : ", no sha256 in release"));
+                Report("Скачана версия " + release.VersionText
+                    + (release.Sha256 != null ? ", контрольная сумма сверена с GitHub" : ", в релизе нет контрольной суммы — файл не сверен")
+                    + ". «Установить сейчас» запустит установщик: он поставит её поверх текущей и запустит программу заново, "
+                    + AppIdentity.UpdateKeeps + ".", path);
             }
             catch (Exception error)
             {
@@ -125,14 +134,78 @@ namespace AgentGlow
             pathBox.Text = path;
             pathBox.Visible = true;
             fileButtons.Visible = true;
-            ShowInExplorer(path);
+        }
+
+        public static string InstallStartedText(string setupArguments)
+        {
+            return setupArguments.Length > 0
+                ? "Устанавливаю… Программа закроется и запустится заново."
+                : "Установщик запущен: нажми в нём «Установить». Он закроет программу и запустит новую версию.";
+        }
+
+        private void InstallNow()
+        {
+            installNow.Enabled = false;
+            try
+            {
+                UpdateChecker.Verify(downloadedPath, downloadedRelease);
+                AppLog.Append("update install started: " + downloadedPath);
+                Process setup = Process.Start(new ProcessStartInfo(downloadedPath, AppIdentity.UpdateSetupArguments) { UseShellExecute = true });
+                if (setup != null)
+                {
+                    setup.EnableRaisingEvents = true;
+                    setup.Exited += (sender, e) => SetupExited(setup);
+                }
+                status.Text = InstallStartedText(AppIdentity.UpdateSetupArguments);
+            }
+            catch (System.IO.IOException error)
+            {
+                AppLog.Append("update install refused: " + error.Message);
+                status.Text = "Установщик не запущен: " + error.Message + ". Закрой это окно и проверь обновление заново.";
+            }
+            catch (System.ComponentModel.Win32Exception error)
+            {
+                AppLog.Append("update install failed: " + error.Message);
+                status.Text = "Не удалось запустить установщик: " + error.Message;
+                installNow.Enabled = true;
+            }
+        }
+
+        private void SetupExited(Process setup)
+        {
+            int code = setup.ExitCode;
+            setup.Dispose();
+            AppLog.Append("update installer exited without restarting the program, code " + code);
+            try
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    status.Text = "Установщик закрылся, обновление не установлено (код " + code + "). Можно запустить его снова.";
+                    installNow.Enabled = true;
+                }));
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        private void CopyPath()
+        {
+            try
+            {
+                Clipboard.SetText(downloadedPath);
+            }
+            catch (System.Runtime.InteropServices.ExternalException error)
+            {
+                AppLog.Append("clipboard failed: " + error.Message);
+            }
         }
 
         private static void ShowInExplorer(string path)
         {
             try
             {
-                Process.Start(new ProcessStartInfo("explorer.exe", "/select,\"" + path + "\"") { UseShellExecute = false });
+                Process.Start(new ProcessStartInfo(SystemTools.Explorer, "/select,\"" + path + "\"") { UseShellExecute = false });
             }
             catch (System.ComponentModel.Win32Exception error)
             {

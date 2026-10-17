@@ -9,6 +9,9 @@ namespace AgentGlow.Sources.Claude
     {
         private const int SerializerRecursionLimit = 1000;
         private const string ShellTool = "Bash";
+        private const int MaxIdLength = 128;
+        private const int MaxNameLength = 256;
+        private const int MaxPathLength = 1024;
 
         public static HookEvent Parse(string json)
         {
@@ -25,7 +28,21 @@ namespace AgentGlow.Sources.Claude
             hookEvent.CallKey = CallKey(root, hookEvent);
             hookEvent.ShellCommand = ShellCommand(root, hookEvent);
             if (string.IsNullOrEmpty(hookEvent.SessionId) || string.IsNullOrEmpty(hookEvent.EventName)) return null;
+            if (!IsPlain(hookEvent.SessionId, MaxIdLength) || !IsPlain(hookEvent.EventName, MaxNameLength)) return null;
+            if (hookEvent.AgentId != null && !IsPlain(hookEvent.AgentId, MaxIdLength)) return null;
+            if (hookEvent.ToolName != null && !IsPlain(hookEvent.ToolName, MaxNameLength)) return null;
+            if (hookEvent.Cwd != null && !IsPlain(hookEvent.Cwd, MaxPathLength)) hookEvent.Cwd = null;
             return hookEvent;
+        }
+
+        private static bool IsPlain(string value, int maxLength)
+        {
+            if (value.Length > maxLength) return false;
+            foreach (char c in value)
+            {
+                if (char.IsControl(c)) return false;
+            }
+            return true;
         }
 
         private static string CallKey(Dictionary<string, object> root, HookEvent hookEvent)

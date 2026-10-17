@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Web.Script.Serialization;
 
 namespace AgentGlow.Sources.Generic
@@ -12,6 +11,7 @@ namespace AgentGlow.Sources.Generic
 
         private const int MaxTextLength = 120;
         private const int SerializerRecursionLimit = 20;
+        private static readonly char[] PathSeparators = { '\\', '/' };
 
         public string App;
         public string Session;
@@ -119,7 +119,7 @@ namespace AgentGlow.Sources.Generic
         private static string ProjectName(string directory)
         {
             string trimmed = directory.TrimEnd('\\', '/');
-            string name = Path.GetFileName(trimmed);
+            string name = trimmed.Substring(trimmed.LastIndexOfAny(PathSeparators) + 1);
             return string.IsNullOrEmpty(name) ? trimmed : name;
         }
     }

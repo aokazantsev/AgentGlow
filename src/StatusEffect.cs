@@ -44,7 +44,7 @@ namespace AgentGlow
             EffectKind kind;
             int rgb;
             int speed;
-            if (!Enum.TryParse(fields[0].Trim(), true, out kind)) return fallback;
+            if (!Enum.TryParse(fields[0].Trim(), true, out kind) || !Enum.IsDefined(typeof(EffectKind), kind)) return fallback;
             if (!int.TryParse(fields[1].Trim(), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out rgb)) return fallback;
             if (!int.TryParse(fields[2].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out speed)) return fallback;
             return new StatusEffect(kind, rgb, speed);

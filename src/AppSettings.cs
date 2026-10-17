@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Threading;
 
 namespace AgentGlow
 {
@@ -24,8 +25,12 @@ namespace AgentGlow
         private const string FixedEffectKey = "fixedEffect";
         private const char KeyValueSeparator = '=';
         private const char DeviceSeparator = '|';
+        private const int ReadAttempts = 5;
+        private const int ReadRetryMs = 300;
+        private const int PatientReadRetries = 10;
+        private const int PatientReadRetryMs = 1500;
 
-        private static readonly string FilePath = UserDataPaths.File("settings.txt");
+        public static readonly string FilePath = UserDataPaths.File("settings.txt");
 
         public int EventPort = DefaultEventPort;
         public List<string> EnabledSources = new List<string>(SourceCatalog.AllIds());
@@ -38,6 +43,8 @@ namespace AgentGlow
         public List<string> FixedDeviceNames;
         public StatusEffect FixedEffect = new StatusEffect(EffectKind.Off, 0x000000, 3);
         public readonly Dictionary<GlowStatus, StatusEffect> Effects = new Dictionary<GlowStatus, StatusEffect>();
+        public string ReadError;
+        public bool ReadDenied;
 
         public AppSettings()
         {
@@ -54,11 +61,12 @@ namespace AgentGlow
 
         private static List<string> ParseSources(string value)
         {
+            var known = SourceCatalog.AllIds();
             var ids = new List<string>();
             foreach (string id in value.Split(',', '|'))
             {
                 string trimmed = id.Trim().ToLowerInvariant();
-                if (trimmed.Length > 0 && !ids.Contains(trimmed)) ids.Add(trimmed);
+                if (known.Contains(trimmed) && !ids.Contains(trimmed)) ids.Add(trimmed);
             }
             return ids;
         }
@@ -72,19 +80,49 @@ namespace AgentGlow
         {
             var settings = new AppSettings();
             if (!File.Exists(FilePath)) return settings;
-            try
+            string[] lines = null;
+            for (int attempt = 1; lines == null; attempt++)
             {
-                foreach (string line in File.ReadAllLines(FilePath, Encoding.UTF8))
+                try
                 {
-                    int separator = line.IndexOf(KeyValueSeparator);
-                    if (separator <= 0) continue;
-                    settings.Apply(line.Substring(0, separator).Trim(), line.Substring(separator + 1).Trim());
+                    lines = File.ReadAllLines(FilePath, Encoding.UTF8);
                 }
+                catch (IOException error)
+                {
+                    if (attempt >= ReadAttempts) settings.ReadError = error.Message;
+                }
+                catch (UnauthorizedAccessException error)
+                {
+                    settings.ReadError = error.Message;
+                    settings.ReadDenied = true;
+                }
+                if (settings.ReadError != null) return settings;
+                if (lines == null) Thread.Sleep(ReadRetryMs);
             }
-            catch (IOException)
+            foreach (string line in lines)
             {
+                int separator = line.IndexOf(KeyValueSeparator);
+                if (separator <= 0) continue;
+                settings.Apply(line.Substring(0, separator).Trim(), line.Substring(separator + 1).Trim());
             }
             return settings;
+        }
+
+        public static AppSettings LoadPatiently(Action<string> log)
+        {
+            AppSettings settings = Load();
+            for (int attempt = 1; settings.ReadError != null && !settings.ReadDenied && attempt <= PatientReadRetries; attempt++)
+            {
+                log("settings not read: " + settings.ReadError + ", retry " + attempt);
+                Thread.Sleep(PatientReadRetryMs);
+                settings = Load();
+            }
+            return settings;
+        }
+
+        public string ReadAdvice
+        {
+            get { return ReadDenied ? "Нет доступа к файлу: верни права на него или удали его." : "Файл занят другой программой: подожди, пока он освободится."; }
         }
 
         public StatusEffect EffectFor(GlowStatus status)
@@ -112,7 +150,7 @@ namespace AgentGlow
             return copy;
         }
 
-        public bool TrySave()
+        public string Save()
         {
             var content = new StringBuilder();
             AppendLine(content, EventPortKey, EventPort.ToString(CultureInfo.InvariantCulture));
@@ -131,16 +169,17 @@ namespace AgentGlow
             }
             try
             {
+                Directory.CreateDirectory(Path.GetDirectoryName(FilePath));
                 File.WriteAllText(FilePath, content.ToString(), new UTF8Encoding(false));
-                return true;
+                return null;
             }
-            catch (IOException)
+            catch (IOException error)
             {
-                return false;
+                return error.Message;
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException error)
             {
-                return false;
+                return error.Message;
             }
         }
 
@@ -162,7 +201,7 @@ namespace AgentGlow
         private void ApplyEffect(string statusName, string value)
         {
             GlowStatus status;
-            if (!Enum.TryParse(statusName, true, out status)) return;
+            if (!Enum.TryParse(statusName, true, out status) || !Effects.ContainsKey(status)) return;
             Effects[status] = StatusEffect.Parse(value, Effects[status]);
         }
 

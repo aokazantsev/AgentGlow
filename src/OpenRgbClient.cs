@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 
@@ -34,6 +35,7 @@ namespace AgentGlow
 
         public void Connect()
         {
+            if (!IsServerListening()) throw new SocketException((int)SocketError.ConnectionRefused);
             tcp = new TcpClient();
             tcp.ReceiveTimeout = SocketTimeoutMs;
             tcp.SendTimeout = SocketTimeoutMs;
@@ -44,6 +46,22 @@ namespace AgentGlow
             uint serverVersion = new ProtocolReader(Receive(RequestProtocolVersion)).U32();
             if (serverVersion < ProtocolVersion) throw new IOException("OpenRGB server protocol is too old: " + serverVersion);
             Send(0, SetClientName, new ProtocolWriter().Bytes(Encoding.ASCII.GetBytes(ClientName + "\0")).ToArray());
+        }
+
+        private static bool IsServerListening()
+        {
+            try
+            {
+                foreach (IPEndPoint endpoint in IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners())
+                {
+                    if (endpoint.Port == ServerPort && (endpoint.Address.Equals(IPAddress.Any) || IPAddress.IsLoopback(endpoint.Address))) return true;
+                }
+                return false;
+            }
+            catch (NetworkInformationException)
+            {
+                return true;
+            }
         }
 
         public List<RgbController> LoadControllers()

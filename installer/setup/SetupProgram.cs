@@ -1,4 +1,6 @@
 using System;
+using System.IO;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace AgentGlow
@@ -8,9 +10,20 @@ namespace AgentGlow
         [STAThread]
         private static void Main()
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new SetupForm());
+            SystemTools.LoadDllsOnlyFromSystem();
+            Directory.SetCurrentDirectory(Environment.SystemDirectory);
+            bool isFirstInstance;
+            using (new Mutex(true, InstallFolder.SetupMutex, out isFirstInstance))
+            {
+                if (!isFirstInstance)
+                {
+                    MessageBox.Show("Установка " + AppIdentity.Name + " уже идёт.", AppIdentity.Name, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Application.Run(new SetupForm());
+            }
         }
     }
 }

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 
 namespace AgentGlow.Sources.Claude
 {
@@ -8,6 +7,8 @@ namespace AgentGlow.Sources.Claude
     {
         private const string AskUserQuestionTool = "AskUserQuestion";
         private const string MainThread = "";
+        private const int MaxSessions = 200;
+        private static readonly char[] PathSeparators = { '\\', '/' };
         private const string PermissionCandidatesKey = "\0permission";
         private static readonly TimeSpan SessionLifetime = TimeSpan.FromHours(12);
         private static readonly TimeSpan DoneIdleAfter = TimeSpan.FromMinutes(1);
@@ -29,13 +30,6 @@ namespace AgentGlow.Sources.Claude
             }
         }
 
-        public List<SessionState> SessionsByStatus()
-        {
-            var list = new List<SessionState>(sessions.Values);
-            list.Sort(CompareByStatusDescending);
-            return list;
-        }
-
         public DateTime LatestEventUtc
         {
             get
@@ -55,14 +49,6 @@ namespace AgentGlow.Sources.Claude
             return sessions.TryGetValue(sessionId, out session) ? session.Status.ToString() : "removed";
         }
 
-        public bool Has(GlowStatus status)
-        {
-            foreach (SessionState session in sessions.Values)
-            {
-                if (session.Status == status) return true;
-            }
-            return false;
-        }
 
         public List<KeyValuePair<string, SessionState>> Snapshot()
         {
@@ -492,12 +478,29 @@ namespace AgentGlow.Sources.Claude
         {
             SessionState session;
             if (sessions.TryGetValue(sessionId, out session)) return session;
+            RemoveOldestIfFull();
             session = new SessionState();
             session.WorkStatus = GlowStatus.Idle;
             session.StatusSinceUtc = nowUtc;
             session.Project = "?";
             sessions[sessionId] = session;
             return session;
+        }
+
+        private void RemoveOldestIfFull()
+        {
+            if (sessions.Count < MaxSessions) return;
+            string oldestKey = null;
+            DateTime oldest = DateTime.MaxValue;
+            foreach (KeyValuePair<string, SessionState> pair in sessions)
+            {
+                if (pair.Value.LastEventUtc < oldest)
+                {
+                    oldest = pair.Value.LastEventUtc;
+                    oldestKey = pair.Key;
+                }
+            }
+            if (oldestKey != null) sessions.Remove(oldestKey);
         }
 
         private static bool IsOlder(DateTime sinceUtc, DateTime nowUtc, int minutes)
@@ -508,14 +511,8 @@ namespace AgentGlow.Sources.Claude
         private static string ProjectName(string cwd)
         {
             string trimmed = cwd.TrimEnd('\\', '/');
-            string name = Path.GetFileName(trimmed);
+            string name = trimmed.Substring(trimmed.LastIndexOfAny(PathSeparators) + 1);
             return string.IsNullOrEmpty(name) ? trimmed : name;
-        }
-
-        private static int CompareByStatusDescending(SessionState left, SessionState right)
-        {
-            int byStatus = right.Status.CompareTo(left.Status);
-            return byStatus != 0 ? byStatus : string.Compare(left.Project, right.Project, StringComparison.OrdinalIgnoreCase);
         }
     }
 }
