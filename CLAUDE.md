@@ -83,8 +83,7 @@
 Проект — один из четырёх pet-проектов (AgentVpnGuard, DevMonitor, AgentGlow, AgentProxy), они устроены одинаково: похожий
 интерфейс, одинаковые установщик, деинсталлятор, порядок меню и код общих частей.
 
-- **Общие файлы** — одинаковые в AgentVpnGuard, AgentGlow и DevMonitor, отличается только `namespace` (DevMonitor
-  догоняет правки AgentVpnGuard 3.2–3.3 и AgentGlow 3.0 в своём цикле техобновлений):
+- **Общие файлы** — одинаковые в AgentVpnGuard, AgentGlow и DevMonitor, отличается только `namespace`:
   `installer\setup\{SetupForm, Installation, InstallTarget, Payload, SetupOption, SetupField,
   InstallRequest, SetupProgram, SetupLog}.cs`, `installer\common\{UninstallRegistration, RunningApp, InstallFolder}.cs`,
   `installer\uninstall\UninstallProgram.cs`, `src\{AboutForm, CrashReportConsent, CrashUploader, UpdateChecker,
@@ -92,7 +91,7 @@
   `build.cmd` и `build-installer.cmd` у AgentGlow свои (рекурсивная сборка, общий список исходников для установщика).
   Поменял общий файл — та же правка в других проектах. У AgentProxy часть общих файлов расходится осознанно (установка
   без прав, HKCU, тихий режим) — список в его `CLAUDE.md`; `Update{Checker,Form,Release}.cs` одинаковые у
-  AgentVpnGuard, AgentGlow и AgentProxy (сверка sha256 по `digest` релиза, «Установить сейчас» через ShellExecute — окно UAC у программ без прав),
+  всех четырёх (сверка sha256 по `digest` релиза, «Установить сейчас» через ShellExecute — окно UAC у программ без прав),
   своё — `AppIdentity.UpdateSetupArguments` и `UpdateKeeps`. Тесты общего кода обновления — в AgentProxy
   (`tests\csharp\run.cmd`).
 - **Своё у проекта:** `src\AppIdentity.cs` (имя, версия, ссылки, пути, `PayloadFiles`, параметры обновления), `src\Autostart.cs`,
