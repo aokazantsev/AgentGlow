@@ -9,7 +9,11 @@ namespace AgentGlow.Sources.Claude
     internal static class SessionStore
     {
         private const char FieldSeparator = '\t';
-        private const int FieldCount = 7;
+        private const int LegacyFieldCount = 7;
+        private const int FieldCount = 8;
+        private const string NoReply = "0";
+        private const string HiddenReply = "1";
+        private const string ShownReply = "2";
 
         private static readonly string FilePath = UserDataPaths.File("sessions.txt");
 
@@ -25,7 +29,10 @@ namespace AgentGlow.Sources.Claude
                     .Append(session.Process == null ? 0 : session.Process.ProcessId).Append(FieldSeparator)
                     .Append(session.Process == null ? 0 : session.Process.StartTimeUtc.Ticks).Append(FieldSeparator)
                     .Append(session.LastEventUtc.Ticks).Append(FieldSeparator)
-                    .Append(session.StatusSinceUtc.Ticks).Append(Environment.NewLine);
+                    .Append(session.StatusSinceUtc.Ticks);
+                string replyState = ReplyState(session);
+                if (replyState != NoReply) content.Append(FieldSeparator).Append(replyState);
+                content.Append(Environment.NewLine);
             }
             try
             {
@@ -37,6 +44,12 @@ namespace AgentGlow.Sources.Claude
             catch (UnauthorizedAccessException)
             {
             }
+        }
+
+        private static string ReplyState(SessionState session)
+        {
+            if (!session.AwaitsReply) return NoReply;
+            return SessionTracker.ShowsReplyQuestion(session) ? ShownReply : HiddenReply;
         }
 
         public static List<KeyValuePair<string, SessionState>> Load()
@@ -60,7 +73,8 @@ namespace AgentGlow.Sources.Claude
             {
                 SessionState session;
                 string[] fields = line.Split(FieldSeparator);
-                if (fields.Length != FieldCount || !TryParse(fields, out session)) continue;
+                if (fields.Length != FieldCount && fields.Length != LegacyFieldCount) continue;
+                if (!TryParse(fields, out session)) continue;
                 if (session.Process != null && !session.Process.IsAlive()) continue;
                 sessions.Add(new KeyValuePair<string, SessionState>(fields[0], session));
             }
@@ -80,9 +94,13 @@ namespace AgentGlow.Sources.Claude
             if (!long.TryParse(fields[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out processStart)) return false;
             if (!long.TryParse(fields[5], NumberStyles.Integer, CultureInfo.InvariantCulture, out lastEvent)) return false;
             if (!long.TryParse(fields[6], NumberStyles.Integer, CultureInfo.InvariantCulture, out statusSince)) return false;
+            string replyState = fields.Length == FieldCount ? fields[7] : NoReply;
+            if (replyState != NoReply && replyState != HiddenReply && replyState != ShownReply) return false;
             session = new SessionState();
             bool attention = status == GlowStatus.Permission || status == GlowStatus.Question;
             session.WorkStatus = attention ? GlowStatus.Working : status;
+            session.AwaitsReply = replyState != NoReply;
+            if (replyState == ShownReply) SessionTracker.AskForReply(session, new DateTime(lastEvent, DateTimeKind.Utc));
             session.Project = fields[2];
             session.Process = processId == 0 ? null : new ProcessIdentity(processId, new DateTime(processStart, DateTimeKind.Utc));
             session.LastEventUtc = new DateTime(lastEvent, DateTimeKind.Utc);

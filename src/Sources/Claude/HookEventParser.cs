@@ -9,6 +9,7 @@ namespace AgentGlow.Sources.Claude
     {
         private const int SerializerRecursionLimit = 1000;
         private const string ShellTool = "Bash";
+        internal const string TurnWrapUpTool = "mcp__ccd_turn__wrap_up";
         private const int MaxIdLength = 128;
         private const int MaxNameLength = 256;
         private const int MaxPathLength = 1024;
@@ -22,11 +23,12 @@ namespace AgentGlow.Sources.Claude
             hookEvent.NotificationType = Field(root, json, "notification_type");
             hookEvent.Message = Field(root, json, "message");
             hookEvent.ToolName = Field(root, json, "tool_name");
-            hookEvent.Cwd =Field(root, json, "cwd");
+            hookEvent.Cwd = Field(root, json, "cwd");
             hookEvent.AgentId = Field(root, json, "agent_id");
             hookEvent.BackgroundTaskCount = ListLength(root, "background_tasks");
             hookEvent.CallKey = CallKey(root, hookEvent);
             hookEvent.ShellCommand = ShellCommand(root, hookEvent);
+            hookEvent.AwaitsUserReply = AwaitsUserReply(root, hookEvent);
             if (string.IsNullOrEmpty(hookEvent.SessionId) || string.IsNullOrEmpty(hookEvent.EventName)) return null;
             if (!IsPlain(hookEvent.SessionId, MaxIdLength) || !IsPlain(hookEvent.EventName, MaxNameLength)) return null;
             if (hookEvent.AgentId != null && !IsPlain(hookEvent.AgentId, MaxIdLength)) return null;
@@ -57,11 +59,30 @@ namespace AgentGlow.Sources.Claude
 
         private static string ShellCommand(Dictionary<string, object> root, HookEvent hookEvent)
         {
-            object toolInput;
-            if (root == null || hookEvent.ToolName != ShellTool || !root.TryGetValue("tool_input", out toolInput)) return null;
-            var input = toolInput as Dictionary<string, object>;
             object command;
+            Dictionary<string, object> input = ToolInput(root, hookEvent, ShellTool);
             return input != null && input.TryGetValue("command", out command) ? command as string : null;
+        }
+
+        private static bool AwaitsUserReply(Dictionary<string, object> root, HookEvent hookEvent)
+        {
+            object blocked;
+            Dictionary<string, object> input = ToolInput(root, hookEvent, TurnWrapUpTool);
+            return input != null && input.TryGetValue("blocked", out blocked) && IsTrue(blocked);
+        }
+
+        private static Dictionary<string, object> ToolInput(Dictionary<string, object> root, HookEvent hookEvent, string toolName)
+        {
+            object toolInput;
+            if (root == null || hookEvent.ToolName != toolName || !root.TryGetValue("tool_input", out toolInput)) return null;
+            return toolInput as Dictionary<string, object>;
+        }
+
+        private static bool IsTrue(object value)
+        {
+            if (value is bool) return (bool)value;
+            var text = value as string;
+            return text != null && string.Equals(text, "true", StringComparison.OrdinalIgnoreCase);
         }
 
         private static Dictionary<string, object> TryDeserialize(string json)

@@ -101,14 +101,17 @@ namespace AgentGlow.Sources.Claude
             switch (hookEvent.EventName)
             {
                 case "StopFailure":
+                    session.AwaitsReply = false;
                     ClearAttention(session);
                     break;
                 case "UserPromptSubmit":
+                    session.AwaitsReply = false;
                     ForgetActor(session, MainThread);
                     break;
                 case "Stop":
                     if (hookEvent.BackgroundTaskCount > 0) ForgetActor(session, MainThread);
                     else ClearAttention(session);
+                    if (session.AwaitsReply) AskForReply(session, nowUtc);
                     break;
                 case "PermissionRequest":
                     if (hookEvent.CallKey != null && hookEvent.ToolName != AskUserQuestionTool) session.OpenPermissionRequests[hookEvent.CallKey] = new PermissionRequestRecord(actor, nowUtc, CommandFingerprint.OfCommand(hookEvent.ShellCommand));
@@ -118,6 +121,11 @@ namespace AgentGlow.Sources.Claude
                 case "PermissionDenied":
                     session.Pending.Remove(actor);
                     if (hookEvent.CallKey != null) ResolveCall(session, hookEvent.CallKey);
+                    if (hookEvent.ToolName == HookEventParser.TurnWrapUpTool && actor == MainThread && hookEvent.EventName == "PostToolUse")
+                    {
+                        session.AwaitsReply = hookEvent.AwaitsUserReply;
+                        if (session.AwaitsReply) AskForReply(session, nowUtc);
+                    }
                     break;
                 case "PreToolUse":
                     if (hookEvent.ToolName == AskUserQuestionTool) session.Pending[actor] = new PendingAttention(GlowStatus.Question, nowUtc);
@@ -136,6 +144,17 @@ namespace AgentGlow.Sources.Claude
                     }
                     break;
             }
+        }
+
+        public static void AskForReply(SessionState session, DateTime nowUtc)
+        {
+            session.Pending[MainThread] = new PendingAttention(GlowStatus.Question, nowUtc);
+        }
+
+        public static bool ShowsReplyQuestion(SessionState session)
+        {
+            PendingAttention pending;
+            return session.Pending.TryGetValue(MainThread, out pending) && pending.Status == GlowStatus.Question;
         }
 
         private static bool AsksQuestion(SessionState session, string actor)
@@ -410,6 +429,11 @@ namespace AgentGlow.Sources.Claude
                     && IsOlder(session.LastEventUtc, nowUtc, workingTimeoutMinutes);
                 bool doneStale = (session.WorkStatus == GlowStatus.Done || session.WorkStatus == GlowStatus.DoneIdle)
                     && IsOlder(session.StatusSinceUtc, nowUtc, doneTimeoutMinutes);
+                if (doneStale && session.AwaitsReply)
+                {
+                    session.AwaitsReply = false;
+                    session.Pending.Remove(MainThread);
+                }
                 if (workingStale || doneStale)
                 {
                     session.WorkStatus = GlowStatus.Idle;

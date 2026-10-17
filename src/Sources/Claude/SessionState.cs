@@ -12,6 +12,7 @@ namespace AgentGlow.Sources.Claude
         public DateTime StatusSinceUtc;
         public int BackgroundTaskCount;
         public bool WaitsForBackgroundTasks;
+        public bool AwaitsReply;
         public string LastAgentId;
         public readonly Dictionary<string, PendingAttention> Pending = new Dictionary<string, PendingAttention>();
         public readonly Dictionary<string, PermissionRequestRecord> OpenPermissionRequests = new Dictionary<string, PermissionRequestRecord>();
