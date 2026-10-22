@@ -93,7 +93,18 @@
   без прав, HKCU, тихий режим) — список в его `CLAUDE.md`; `Update{Checker,Form,Release}.cs` одинаковые у
   всех четырёх (сверка sha256 по `digest` релиза, «Установить сейчас» через ShellExecute — окно UAC у программ без прав),
   своё — `AppIdentity.UpdateSetupArguments` и `UpdateKeeps`. Тесты общего кода обновления — в AgentProxy
-  (`tests\csharp\run.cmd`).
+  (`tests\csharp\run.cmd`). Одинаковые у всех четырёх и `src\{Usage, UsageDay, UsageConsent, AutoUpdateCheck,
+  UpdateWatcher}.cs`: статистика использования (счётчики за сутки, пакет раз в час на `AppIdentity.SiteUrl + "usage"`) и
+  проверка обновления раз в сутки с уведомлением; галочки — файлами `usage-statistics.txt` (`on`/`off`; нет
+  файла — не отправляется, поэтому установщик под чужой учёткой не включит её за пользователя) и `update-check-off.txt`
+  в папке данных.
+- **Каталог статистики.** Сервер принимает только события и ключи состояния из каталога `USAGE_CATALOG` в
+  `D:\aokazantsev-site\panel\panel.py` (общие — `USAGE_COMMON_EVENTS`/`USAGE_COMMON_STATE`), остальное отбрасывает. Новое
+  событие или ключ состояния — сначала строка в каталоге и деплой панели, потом выпуск программы. Это касается и
+  нового источника: события `source.<id>` и ключ `source_<id>` строятся из `SourceCatalog`. Значения состояния — только
+  `true`/`false`, неотрицательное число или `[a-z0-9_]` до 24 символов: имён, путей, названий устройств и адресов в
+  статистике быть не должно. События приёма от источников копятся в памяти и сбрасываются в `Usage.Add` раз в 15 с, а
+  не на каждый запрос: `Usage` пишет файл счётчиков на каждый вызов.
 - **Своё у проекта:** `src\AppIdentity.cs` (имя, версия, ссылки, пути, `PayloadFiles`, параметры обновления), `src\Autostart.cs`,
   `installer\setup\SetupProfile.cs` (тексты, галочки по каталогу источников, `AfterLaunch`), `installer\uninstall\UninstallProfile.cs`,
   `installer\payload.txt` (что ставится), `src\CrashReport.cs` (перехват падений).

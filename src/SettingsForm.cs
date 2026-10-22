@@ -29,8 +29,12 @@ namespace AgentGlow
         private readonly NumericUpDown darkAfterBox = new NumericUpDown();
         private readonly NumericUpDown eventPortBox = new NumericUpDown();
         private readonly CheckBox launchOpenRgbBox = new CheckBox();
+        private readonly CheckBox autoUpdateBox = new CheckBox();
+        private readonly CheckBox usageStatisticsBox = new CheckBox();
 
         public AppSettings Result;
+        public bool AutoUpdateChosen;
+        public bool UsageStatisticsChosen;
 
         public SettingsForm(AppSettings settings, LightingController lighting, Action<StatusEffect> preview)
         {
@@ -51,6 +55,40 @@ namespace AgentGlow
             y = AddFixedDevices(y + Gap, lighting);
             y = AddBehavior(y + Gap);
             AddButtons(y + Gap);
+        }
+
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            Rectangle area = Screen.FromControl(this).WorkingArea;
+            if (Height <= area.Height) return;
+            AutoScroll = true;
+            Size = new Size(Width + SystemInformation.VerticalScrollBarWidth, area.Height);
+            CenterToScreen();
+            ActiveControl = (Control)AcceptButton;
+            KeepWheelForScrolling(this);
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            if (AutoScroll) AutoScrollPosition = Point.Empty;
+        }
+
+        private void KeepWheelForScrolling(Control parent)
+        {
+            foreach (Control child in parent.Controls)
+            {
+                if (child is ComboBox || child is NumericUpDown) child.MouseWheel += OnFieldWheel;
+                KeepWheelForScrolling(child);
+            }
+        }
+
+        private void OnFieldWheel(object sender, MouseEventArgs e)
+        {
+            if (((Control)sender).ContainsFocus) return;
+            ((HandledMouseEventArgs)e).Handled = true;
+            AutoScrollPosition = new Point(-AutoScrollPosition.X, -AutoScrollPosition.Y - e.Delta);
         }
 
         private int AddStatusRows(int top)
@@ -208,6 +246,16 @@ namespace AgentGlow
             launchOpenRgbBox.Checked = draft.LaunchOpenRgb;
             launchOpenRgbBox.SetBounds(Gap, y, 400, 24);
             Controls.Add(launchOpenRgbBox);
+            y += RowHeight;
+            autoUpdateBox.Text = "Раз в сутки проверять обновление и сообщать о новой версии";
+            autoUpdateBox.Checked = AutoUpdateCheck.IsEnabled;
+            autoUpdateBox.SetBounds(Gap, y, FormContentWidth(), 24);
+            Controls.Add(autoUpdateBox);
+            y += RowHeight;
+            usageStatisticsBox.Text = "Отправлять автору анонимную статистику использования";
+            usageStatisticsBox.Checked = UsageConsent.IsGiven;
+            usageStatisticsBox.SetBounds(Gap, y, FormContentWidth(), 24);
+            Controls.Add(usageStatisticsBox);
             return y + RowHeight;
         }
 
@@ -306,6 +354,8 @@ namespace AgentGlow
             draft.DarkAfterMinutes = (int)darkAfterBox.Value;
             draft.EventPort = (int)eventPortBox.Value;
             draft.LaunchOpenRgb = launchOpenRgbBox.Checked;
+            AutoUpdateChosen = autoUpdateBox.Checked;
+            UsageStatisticsChosen = usageStatisticsBox.Checked;
             Result = draft;
             DialogResult = DialogResult.OK;
             Close();

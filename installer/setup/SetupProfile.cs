@@ -76,6 +76,25 @@ namespace AgentGlow
                     + "Изменить выбор — переустановить программу.",
                 Checked = CrashReportConsent.IsGiven
             });
+            options.Add(new SetupOption
+            {
+                Key = UsageConsent.OptionKey,
+                Text = "Отправлять автору анонимную статистику использования",
+                Hint = "Помогает понять, сколько людей пользуется программой и какие функции нужны. Без имён, путей и адресов. "
+                    + "Выключить можно и потом — в настройках программы.",
+                DetailsTitle = "Что уходит в статистике",
+                Details = "Раз в час, пока программа запущена, на aokazantsev.ru (сервер в России) уходят счётчики за текущие и неотправленные прошлые сутки (до недели):\n"
+                    + "• случайный номер установки — он не связан с тобой и компьютером;\n"
+                    + "• версия программы и Windows;\n"
+                    + "• сколько раз за сутки программа запускалась, сама находила новую версию и сама перезапускала OpenRGB, "
+                    + "сколько раз ты пользовался пунктами меню, настройками, уведомлениями и обновлением;\n"
+                    + "• сколько событий за сутки пришло от Claude Code и от других приложений — только число, без содержимого;\n"
+                    + "• текущие настройки: какие источники включены, автозапуск, проверка обновлений, отчёты о сбоях, пауза, сколько RGB-устройств видно и сколько держат "
+                    + "постоянный свет, эффект статуса «Нет активных сессий», менялись ли эффекты, стоит ли OpenRGB службой.\n"
+                    + "Имена пользователя и компьютера, пути, названия проектов, сессий и устройств, тексты агентов и адреса в статистику "
+                    + "не попадают, IP-адрес сервер не хранит. Статистика хранится 400 суток, дальше — только итоги по дням.",
+                Checked = UsageConsent.InstallerDefault
+            });
             return options;
         }
 
@@ -89,6 +108,8 @@ namespace AgentGlow
             pendingSettings = settings;
             CrashReportConsent.Set(request.Has(CrashReportConsent.OptionKey));
             SetupLog.Append("crash reports: " + request.Has(CrashReportConsent.OptionKey));
+            UsageConsent.Set(request.Has(UsageConsent.OptionKey));
+            SetupLog.Append("usage statistics: " + request.Has(UsageConsent.OptionKey));
         }
 
         public static void AfterExtract(InstallRequest request, Action<int, string> report, List<string> notes)
