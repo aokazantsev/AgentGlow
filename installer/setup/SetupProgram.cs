@@ -8,7 +8,7 @@ namespace AgentGlow
     internal static class SetupProgram
     {
         [STAThread]
-        private static void Main()
+        private static int Main()
         {
             SystemTools.LoadDllsOnlyFromSystem();
             Directory.SetCurrentDirectory(Environment.SystemDirectory);
@@ -17,12 +17,14 @@ namespace AgentGlow
             {
                 if (!isFirstInstance)
                 {
+                    SetupLog.AppendWithoutHeader("another " + AppIdentity.Name + " " + AppIdentity.Version + " setup is already running, this one exits");
                     MessageBox.Show("Установка " + AppIdentity.Name + " уже идёт.", AppIdentity.Name, MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
+                    return 1;
                 }
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
                 Application.Run(new SetupForm());
+                return 0;
             }
         }
     }
