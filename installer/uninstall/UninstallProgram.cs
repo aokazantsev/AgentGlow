@@ -63,6 +63,7 @@ namespace AgentGlow
         {
             Directory.SetCurrentDirectory(Environment.SystemDirectory);
             var problems = new List<string>();
+            var notes = new List<string>();
             if (!RunningApp.Stop()) problems.Add(AppIdentity.Name + " не закрылся");
             UninstallProfile.Remove(problems);
             string autostartProblem = Autostart.Disable();
@@ -70,30 +71,34 @@ namespace AgentGlow
             UninstallRegistration.Unregister();
             string dataProblem = DeleteWithRetries(AppIdentity.DataDirectory);
             if (dataProblem != null) problems.Add("папка данных " + dataProblem);
-            string folderProblem = CleanInstallDirectory(installDirectory);
+            string folderProblem = CleanInstallDirectory(installDirectory, notes);
             if (folderProblem != null) problems.Add("папка программы " + folderProblem);
+            string remarks = notes.Count > 0 ? Environment.NewLine + Environment.NewLine + string.Join(Environment.NewLine + Environment.NewLine, notes) : "";
             if (problems.Count == 0)
             {
-                MessageBox.Show(AppIdentity.Name + " удалён.", Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(AppIdentity.Name + " удалён." + remarks, Title, MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             else
             {
-                MessageBox.Show("Удаление закончено не полностью:" + Environment.NewLine + "• " + string.Join(Environment.NewLine + "• ", problems),
+                MessageBox.Show("Удаление закончено не полностью:" + Environment.NewLine + "• " + string.Join(Environment.NewLine + "• ", problems) + remarks,
                     Title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             ScheduleSelfDelete();
             return problems.Count == 0 ? 0 : 2;
         }
 
-        private static string CleanInstallDirectory(string directory)
+        private static string CleanInstallDirectory(string directory, List<string> notes)
         {
             if (!Directory.Exists(directory) || !InstallFolder.IsMarked(directory)) return null;
             for (int attempt = 1; ; attempt++)
             {
                 try
                 {
-                    if (InstallFolder.RemoveProgramFiles(directory, AppIdentity.ExecutableName, AppIdentity.PayloadFiles)) return null;
-                    return "не удалена: в ней остались чужие файлы, файлы " + AppIdentity.Name + " убраны";
+                    if (!InstallFolder.RemoveProgramFiles(directory, AppIdentity.ExecutableName, AppIdentity.PayloadFiles))
+                    {
+                        notes.Add("Папка " + directory + " оставлена: в ней есть файлы, которые не ставил установщик. Файлы " + AppIdentity.Name + " из неё убраны.");
+                    }
+                    return null;
                 }
                 catch (DirectoryNotFoundException)
                 {

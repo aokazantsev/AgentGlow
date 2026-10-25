@@ -12,8 +12,6 @@ namespace AgentGlow
         private const string ResetSettingsKey = "resetSettings";
         private const string OpenRgbPath = @"C:\Program Files\OpenRGB\OpenRGB.exe";
 
-        private const string StoppedHint = "AgentGlow, если был запущен, остановлен: повтори установку, когда исправишь причину.";
-
         private static AppSettings pendingSettings;
 
         public const string Intro =
@@ -104,7 +102,7 @@ namespace AgentGlow
             SetupLog.Append("reset settings: " + reset);
             if (!reset) report(5, "Читаю настройки…");
             AppSettings settings = reset ? new AppSettings() : AppSettings.LoadPatiently(SetupLog.Append);
-            if (settings.ReadError != null) throw new InvalidOperationException("Не удалось прочитать настройки " + AppSettings.FilePath + ": " + settings.ReadError.TrimEnd('.') + ". " + settings.ReadAdvice + " " + StoppedHint);
+            if (settings.ReadError != null) throw new InvalidOperationException("Не удалось прочитать настройки " + AppSettings.FilePath + ": " + settings.ReadError.TrimEnd('.') + ". " + settings.ReadAdvice);
             pendingSettings = settings;
             CrashReportConsent.Set(request.Has(CrashReportConsent.OptionKey));
             SetupLog.Append("crash reports: " + request.Has(CrashReportConsent.OptionKey));
@@ -118,7 +116,7 @@ namespace AgentGlow
             AppSettings settings = pendingSettings;
             settings.EnabledSources = EnabledSources(request);
             string saveProblem = settings.Save();
-            if (saveProblem != null) throw new InvalidOperationException("Не удалось записать настройки в " + AppSettings.FilePath + ": " + saveProblem.TrimEnd('.') + ". " + StoppedHint);
+            if (saveProblem != null) throw new InvalidOperationException("Не удалось записать настройки в " + AppSettings.FilePath + ": " + saveProblem.TrimEnd('.') + ".");
             SetupLog.Append("sources: " + string.Join(",", settings.EnabledSources.ToArray()));
             if (OpenRgbService.IsInstalled())
             {
