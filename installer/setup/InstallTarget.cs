@@ -8,8 +8,17 @@ namespace AgentGlow
         public static string DefaultDirectory()
         {
             string installed = UninstallRegistration.InstalledLocation();
-            if (installed != null && Directory.Exists(installed) && InstallFolder.IsOurs(installed)) return installed;
-            return AppIdentity.DefaultInstallDirectory;
+            return IsUpdate(installed) ? installed : AppIdentity.DefaultInstallDirectory;
+        }
+
+        public static bool IsUpdate(string installed)
+        {
+            return installed != null && Directory.Exists(installed) && InstallFolder.IsOurs(installed);
+        }
+
+        public static bool AutostartByDefault(string installed, bool enabled)
+        {
+            return !IsUpdate(installed) || enabled;
         }
 
         public static string Validate(string directory)
