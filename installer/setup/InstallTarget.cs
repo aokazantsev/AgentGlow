@@ -16,9 +16,9 @@ namespace AgentGlow
             return installed != null && Directory.Exists(installed) && InstallFolder.IsOurs(installed);
         }
 
-        public static bool AutostartByDefault(string installed, bool enabled)
+        public static bool AutostartByDefault(string installed, Func<bool> enabled)
         {
-            return !IsUpdate(installed) || enabled;
+            return !IsUpdate(installed) || enabled();
         }
 
         public static string Validate(string directory)

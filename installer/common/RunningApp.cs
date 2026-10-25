@@ -8,6 +8,7 @@ namespace AgentGlow
     internal static class RunningApp
     {
         private const int ExitWaitMs = 5000;
+        private const int StopPasses = 3;
 
         public static bool IsUninstalling()
         {
@@ -29,26 +30,61 @@ namespace AgentGlow
 
         public static bool Stop()
         {
-            bool stoppedAll = true;
-            foreach (Process process in Process.GetProcessesByName(AppIdentity.ProcessName))
+            return Stop(AppIdentity.ProcessName);
+        }
+
+        internal static bool Stop(string processName)
+        {
+            for (int pass = 1; pass <= StopPasses; pass++)
             {
-                using (process)
+                bool found = false;
+                bool stoppedAll = true;
+                foreach (Process process in Process.GetProcessesByName(processName))
                 {
-                    try
+                    using (process)
                     {
-                        process.Kill();
-                        if (!process.WaitForExit(ExitWaitMs)) stoppedAll = false;
-                    }
-                    catch (Win32Exception)
-                    {
-                        if (!process.WaitForExit(ExitWaitMs)) stoppedAll = false;
-                    }
-                    catch (InvalidOperationException)
-                    {
+                        found = true;
+                        if (!Kill(process)) stoppedAll = false;
                     }
                 }
+                if (!stoppedAll) return false;
+                if (!found) return true;
             }
-            return stoppedAll;
+            return !IsRunning(processName);
+        }
+
+        private static bool IsRunning(string processName)
+        {
+            Process[] running = Process.GetProcessesByName(processName);
+            foreach (Process process in running) process.Dispose();
+            return running.Length > 0;
+        }
+
+        internal static bool Kill(Process process)
+        {
+            try
+            {
+                process.Kill();
+            }
+            catch (Win32Exception)
+            {
+            }
+            catch (InvalidOperationException)
+            {
+                return true;
+            }
+            try
+            {
+                return process.WaitForExit(ExitWaitMs);
+            }
+            catch (Win32Exception)
+            {
+                return false;
+            }
+            catch (InvalidOperationException)
+            {
+                return true;
+            }
         }
 
         private static string PathOf(Process process)

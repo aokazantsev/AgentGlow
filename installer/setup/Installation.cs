@@ -30,7 +30,7 @@ namespace AgentGlow
 
             if (RunningApp.IsUninstalling()) throw new InvalidOperationException("Сейчас идёт удаление " + AppIdentity.Name + ". Дождись его окончания и повтори установку.");
             report(0, "Останавливаю запущенный " + AppIdentity.Name + "…");
-            if (!RunningApp.Stop()) throw new InvalidOperationException(AppIdentity.Name + " не закрывается. Закрой его в трее и повтори установку.");
+            if (!RunningApp.Stop()) throw new InvalidOperationException(AppIdentity.Name + " не закрывается. Закрой его в трее и повтори установку; если он запущен у другого пользователя Windows — закрой его там.");
 
             SetupProfile.BeforeExtract(request, report, notes);
             report(10, "Распаковка файлов…");
@@ -48,7 +48,7 @@ namespace AgentGlow
             if (autostartProblem != null) notes.Add(autostartProblem);
             SetupLog.Append("autostart " + (request.EnablesAutostart ? "enable" : "disable") + ": problem=" + (autostartProblem ?? "none") + ", enabled now=" + Autostart.IsEnabled());
 
-            RemovePreviousLocation(previous, token);
+            RemovePreviousLocation(previous, target, token);
             report(97, "Запуск…");
             SetupProfile.Launch(executable);
             SetupLog.Append("launched " + executable);
@@ -56,12 +56,18 @@ namespace AgentGlow
             report(100, "Готово.");
         }
 
-        private void RemovePreviousLocation(string previous, string token)
+        private void RemovePreviousLocation(string previous, string target, string token)
         {
             if (previous == null || !Directory.Exists(previous)) return;
-            if (!InstallFolder.IsOurs(previous) || InstallFolder.HasMark(previous, token))
+            if (InstallFolder.HasMark(previous, token))
             {
                 SetupLog.Append("previous location kept: " + previous);
+                return;
+            }
+            if (!InstallFolder.IsOurs(previous))
+            {
+                SetupLog.Append("previous location kept, no program in it: " + previous);
+                if (!IsEmpty(previous) && !Contains(previous, target)) notes.Add("Прежняя папка программы " + previous + " не тронута: в ней нет " + AppIdentity.ExecutableName + ". Если она больше не нужна, удали её вручную, а не запуском Uninstall.exe в ней: он удалит и новую установку.");
                 return;
             }
             try
@@ -77,6 +83,28 @@ namespace AgentGlow
             catch (UnauthorizedAccessException error)
             {
                 notes.Add("Прежняя папка программы " + previous + " удалена не полностью (" + error.Message + ") — удали из неё вручную оставшиеся файлы " + AppIdentity.Name + ", а не запуском Uninstall.exe в ней: он удалит и новую установку.");
+            }
+        }
+
+        private static bool Contains(string folder, string path)
+        {
+            string prefix = Path.GetFullPath(folder).TrimEnd('\\') + "\\";
+            return Path.GetFullPath(path).StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsEmpty(string directory)
+        {
+            try
+            {
+                return Directory.GetFileSystemEntries(directory).Length == 0;
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return false;
             }
         }
     }

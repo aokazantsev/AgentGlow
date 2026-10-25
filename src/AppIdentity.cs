@@ -6,7 +6,7 @@ namespace AgentGlow
     internal static class AppIdentity
     {
         public const string Name = "AgentGlow";
-        public const string Version = "3.4";
+        public const string Version = "3.5";
         public const string UpdateSetupArguments = "";
         public const string UpdateKeeps = "настройки сохранятся";
         public const string ExecutableName = "AgentGlow.exe";
