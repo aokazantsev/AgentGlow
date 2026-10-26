@@ -19,15 +19,20 @@ namespace AgentGlow
 
         public static void Append(string line)
         {
-            byte[] bytes = new UTF8Encoding(false).GetBytes(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " + line + Environment.NewLine);
+            AppendTo(FilePath, PreviousFilePath, MaxBytes, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " + line);
+        }
+
+        public static void AppendTo(string filePath, string previousFilePath, long maxBytes, string line)
+        {
+            byte[] bytes = new UTF8Encoding(false).GetBytes(line + Environment.NewLine);
             lock (Gate)
             {
                 for (int attempt = 1; attempt <= WriteAttempts; attempt++)
                 {
                     try
                     {
-                        Rotate();
-                        using (var stream = new FileStream(FilePath, FileMode.Append, FileAccess.Write, FileShare.Read))
+                        Rotate(filePath, previousFilePath, maxBytes);
+                        using (var stream = new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.Read))
                         {
                             stream.Write(bytes, 0, bytes.Length);
                         }
@@ -72,14 +77,14 @@ namespace AgentGlow
             }
         }
 
-        private static void Rotate()
+        private static void Rotate(string filePath, string previousFilePath, long maxBytes)
         {
             try
             {
-                var info = new FileInfo(FilePath);
-                if (!info.Exists || info.Length <= MaxBytes) return;
-                File.Delete(PreviousFilePath);
-                File.Move(FilePath, PreviousFilePath);
+                var info = new FileInfo(filePath);
+                if (!info.Exists || info.Length <= maxBytes) return;
+                File.Delete(previousFilePath);
+                File.Move(filePath, previousFilePath);
             }
             catch (IOException)
             {

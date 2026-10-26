@@ -44,6 +44,7 @@ namespace AgentGlow.Sources.Claude
             if (hookEvent.AgentId != null && !IsPlain(hookEvent.AgentId, MaxIdLength)) return null;
             if (hookEvent.ToolName != null && !IsPlain(hookEvent.ToolName, MaxNameLength)) return null;
             if (hookEvent.Cwd != null && !IsPlain(hookEvent.Cwd, MaxPathLength)) hookEvent.Cwd = null;
+            if (hookEvent.NotificationType != null && !IsPlain(hookEvent.NotificationType, MaxNameLength)) hookEvent.NotificationType = null;
             return hookEvent;
         }
 
@@ -77,8 +78,11 @@ namespace AgentGlow.Sources.Claude
         private static bool AwaitsUserReply(Dictionary<string, object> root, HookEvent hookEvent)
         {
             object blocked;
+            object ask;
             Dictionary<string, object> input = ToolInput(root, hookEvent, TurnWrapUpTool);
-            return input != null && input.TryGetValue("blocked", out blocked) && IsTrue(blocked);
+            if (input == null) return false;
+            if (input.TryGetValue("blocked", out blocked) && IsTrue(blocked)) return true;
+            return input.TryGetValue("ask", out ask) && !string.IsNullOrWhiteSpace(ask as string);
         }
 
         private static bool IsAutomaticPrompt(string prompt)

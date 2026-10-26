@@ -11,6 +11,7 @@ namespace AgentGlow.Sources.Generic
         private static readonly TimeSpan DoneIdleAfter = TimeSpan.FromMinutes(1);
 
         private readonly Dictionary<string, GenericSession> sessions = new Dictionary<string, GenericSession>();
+        private string lastEventLabel = "";
 
         public string Id
         {
@@ -38,6 +39,16 @@ namespace AgentGlow.Sources.Generic
         }
 
         public IIntegration Integration
+        {
+            get { return null; }
+        }
+
+        public string LastEventLabel
+        {
+            get { return lastEventLabel; }
+        }
+
+        public string LastTurnKey
         {
             get { return null; }
         }
@@ -79,11 +90,13 @@ namespace AgentGlow.Sources.Generic
         public bool Handle(EventRequest request, DateTime nowUtc)
         {
             GenericEvent parsed = GenericEvent.Parse(request.Body);
+            lastEventLabel = "unparsed";
             if (parsed == null)
             {
                 AppLog.Append(LogPrefix + "unparsed event, " + request.Body.Length + " chars");
                 return false;
             }
+            lastEventLabel = parsed.App + " " + parsed.Status;
             string key = parsed.App + "/" + parsed.Session;
             if (parsed.Status == GenericEvent.Ended)
             {
@@ -131,6 +144,7 @@ namespace AgentGlow.Sources.Generic
                 thread.Source = session.App;
                 thread.Project = session.Project;
                 thread.IdTail = Tail(session.Id);
+                thread.Key = session.App + "/" + session.Id;
                 thread.Status = session.Status;
                 threads.Add(thread);
             }

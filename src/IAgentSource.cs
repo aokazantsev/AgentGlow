@@ -12,6 +12,8 @@ namespace AgentGlow
         int MaxBodyBytes { get; }
         IIntegration Integration { get; }
         DateTime LatestEventUtc { get; }
+        string LastEventLabel { get; }
+        string LastTurnKey { get; }
         bool NeedsLivenessTimer { get; }
         int LivenessIntervalMs { get; }
         void OnReceive(EventRequest request);

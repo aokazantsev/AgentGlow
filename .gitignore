@@ -8,3 +8,4 @@ log.txt
 log.old.txt
 installer/obj/
 dist/
+__pycache__/

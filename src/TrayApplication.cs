@@ -38,6 +38,7 @@ namespace AgentGlow
         private readonly Timer openRgbWatchTimer = new Timer();
         private readonly Stopwatch animationClock = new Stopwatch();
         private readonly Dictionary<string, bool> integrationInstalled = new Dictionary<string, bool>();
+        private readonly StatusHistory history = new StatusHistory();
         private SourceSet sources;
         private AppSettings settings;
         private EventListener listener;
@@ -117,7 +118,8 @@ namespace AgentGlow
                 }
             }
             Connect();
-            Refresh();
+            history.Mark("start " + AppIdentity.Version);
+            Refresh("start");
             UpdateUsageState();
             Usage.Start();
             UpdateWatcher.Start(version => Post(() => ShowUpdateBalloon(version)));
@@ -171,6 +173,7 @@ namespace AgentGlow
             StatusEffect parked = ParkedEffect();
             lighting.Apply(parked, null);
             AppLog.Append(reason + ": lighting parked as " + parked.Kind + (lighting.IsConnected ? "" : ", OpenRGB not connected"));
+            history.Mark("parked: " + reason);
         }
 
         private void StartListener()
@@ -194,6 +197,7 @@ namespace AgentGlow
         {
             try
             {
+                request.Received = DateTimeOffset.Now;
                 invoker.BeginInvoke(new Action<IAgentSource, EventRequest>(HandleRequest), source, request);
             }
             catch (InvalidOperationException)
@@ -208,7 +212,18 @@ namespace AgentGlow
             CountSourceEvent(source);
             bool changed = source.Handle(request, now) || dark;
             UpdateLivenessTimer();
-            if (changed) Refresh();
+            string cause = source.Id + " " + source.LastEventLabel;
+            history.Stamp = request.Received;
+            try
+            {
+                if (changed) Refresh(cause);
+                else RecordHistory(cause);
+                if (source.LastTurnKey != null) history.Event(source.LastTurnKey, cause);
+            }
+            finally
+            {
+                history.Stamp = null;
+            }
         }
 
         private void Connect()
@@ -230,6 +245,11 @@ namespace AgentGlow
 
         private void Refresh()
         {
+            Refresh("display");
+        }
+
+        private void Refresh(string cause)
+        {
             if (previewEffect != null) lighting.Apply(previewEffect, null);
             else if (paused) lighting.Apply(ParkedEffect(), null);
             else if (IsDark()) lighting.Apply(DarkEffect, null);
@@ -238,6 +258,21 @@ namespace AgentGlow
             if (!lighting.IsConnected) reconnectTimer.Start();
             UpdateAnimationTimer();
             UpdateTrayIcon();
+            RecordHistory(cause);
+        }
+
+        private void RecordHistory(string cause)
+        {
+            history.Record(sources.Threads(), ShownState(), cause);
+        }
+
+        private string ShownState()
+        {
+            if (previewEffect != null) return "preview";
+            if (paused) return "paused";
+            if (IsDark()) return "dark";
+            GlowStatus top = sources.TopStatus;
+            return IsSplit() ? top + "+" + GlowStatus.Working : top.ToString();
         }
 
         private void UpdateAnimationTimer()
@@ -447,7 +482,7 @@ namespace AgentGlow
             lighting.Configure(settings.DeviceNames, settings.FixedDeviceNames, settings.FixedEffect);
             sources.Housekeep(DateTime.UtcNow, settings);
             UpdateUsageState();
-            Refresh();
+            Refresh("housekeeping");
         }
 
         private void SaveOptions(SettingsForm form)
@@ -520,7 +555,7 @@ namespace AgentGlow
             Usage.Hit("menu.reset_sessions");
             sources.Clear();
             UpdateLivenessTimer();
-            Refresh();
+            Refresh("reset");
         }
 
         private void OnLogClick(object sender, EventArgs e)
@@ -649,7 +684,7 @@ namespace AgentGlow
                 AppLog.Append(dark ? "lights on" : "lights off: no events for " + settings.DarkAfterMinutes + " min");
                 changed = true;
             }
-            if (changed) Refresh();
+            if (changed) Refresh("housekeeping");
             else UpdateTrayIcon();
         }
 
@@ -657,7 +692,7 @@ namespace AgentGlow
         {
             bool changed = sources.CheckLiveness(DateTime.UtcNow);
             UpdateLivenessTimer();
-            if (changed) Refresh();
+            if (changed) Refresh("liveness");
         }
 
         private void UpdateLivenessTimer()

@@ -5,6 +5,7 @@ namespace AgentGlow
         public string Source;
         public string Project;
         public string IdTail;
+        public string Key;
         public GlowStatus Status;
 
         public string Label

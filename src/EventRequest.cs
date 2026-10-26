@@ -1,3 +1,4 @@
+using System;
 using System.Net;
 
 namespace AgentGlow
@@ -8,5 +9,6 @@ namespace AgentGlow
         public IPEndPoint Client;
         public int Port;
         public object Context;
+        public DateTimeOffset Received;
     }
 }

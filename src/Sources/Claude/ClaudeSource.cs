@@ -10,6 +10,8 @@ namespace AgentGlow.Sources.Claude
 
         private readonly SessionTracker tracker = new SessionTracker();
         private readonly IIntegration integration = new ClaudeIntegration();
+        private string lastEventLabel = "";
+        private string lastTurnKey;
 
         public string Id
         {
@@ -46,6 +48,16 @@ namespace AgentGlow.Sources.Claude
             get { return tracker.LatestEventUtc; }
         }
 
+        public string LastEventLabel
+        {
+            get { return lastEventLabel; }
+        }
+
+        public string LastTurnKey
+        {
+            get { return lastTurnKey; }
+        }
+
         public bool NeedsLivenessTimer
         {
             get { return tracker.HasTrackedProcesses; }
@@ -64,6 +76,8 @@ namespace AgentGlow.Sources.Claude
         public bool Handle(EventRequest request, DateTime nowUtc)
         {
             HookEvent hookEvent = HookEventParser.Parse(request.Body);
+            lastEventLabel = "unparsed";
+            lastTurnKey = null;
             if (hookEvent == null)
             {
                 AppLog.Append(LogPrefix + "unparsed event, " + request.Body.Length + " chars");
@@ -71,8 +85,10 @@ namespace AgentGlow.Sources.Claude
             }
             var process = request.Context as ProcessIdentity;
             bool changed = tracker.Apply(hookEvent, process, nowUtc);
-            AppLog.Append(LogPrefix + hookEvent.EventName + " " + (hookEvent.IsAutomaticWake ? "wake" : hookEvent.NotificationType ?? hookEvent.ToolName ?? "")
-                + (hookEvent.EventName == "Stop" ? "bg=" + hookEvent.BackgroundTaskCount : "")
+            lastEventLabel = hookEvent.EventName + " " + (hookEvent.IsAutomaticWake ? "wake" : hookEvent.NotificationType ?? hookEvent.ToolName ?? "")
+                + (hookEvent.EventName == "Stop" ? "bg=" + hookEvent.BackgroundTaskCount : "");
+            if (IsTurnBoundary(hookEvent.EventName)) lastTurnKey = ShortId(hookEvent.SessionId);
+            AppLog.Append(LogPrefix + lastEventLabel
                 + " session=" + ShortId(hookEvent.SessionId)
                 + " pid=" + (process == null ? "?" : process.ProcessId.ToString())
                 + (hookEvent.AgentId == null ? "" : " agent=" + ShortId(hookEvent.AgentId))
@@ -91,6 +107,7 @@ namespace AgentGlow.Sources.Claude
                 thread.Source = DisplayName;
                 thread.Project = pair.Value.Project;
                 thread.IdTail = Tail(pair.Key);
+                thread.Key = ShortId(pair.Key);
                 thread.Status = pair.Value.Status;
                 threads.Add(thread);
             }
@@ -142,6 +159,11 @@ namespace AgentGlow.Sources.Claude
             if (clientProcessId == 0) return null;
             int claudeProcessId = ProcessTree.FindClaudeAncestor(clientProcessId);
             return claudeProcessId == 0 ? null : ProcessIdentity.TryCapture(claudeProcessId);
+        }
+
+        private static bool IsTurnBoundary(string eventName)
+        {
+            return eventName == "UserPromptSubmit" || eventName == "Stop" || eventName == "StopFailure";
         }
 
         private static string ShortId(string value)
