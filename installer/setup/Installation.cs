@@ -75,7 +75,7 @@ namespace AgentGlow
             if (!InstallFolder.IsOurs(previous))
             {
                 SetupLog.Append("previous location kept, no program in it: " + previous);
-                if (!IsEmpty(previous) && !Contains(previous, target)) notes.Add("Прежняя папка программы " + previous + " не тронута: в ней нет " + AppIdentity.ExecutableName + ". Если она больше не нужна, удали её вручную, а не запуском Uninstall.exe в ней: он удалит и новую установку.");
+                if (!IsEmpty(previous) && !Contains(previous, target)) notes.Add("Прежняя папка программы " + previous + " не тронута: в ней нет " + AppIdentity.ExecutableName + ". Если она больше не нужна, удали её вручную, а не запуском Uninstall.exe в ней: он сломает и новую установку.");
                 return;
             }
             try
@@ -86,11 +86,11 @@ namespace AgentGlow
             }
             catch (IOException error)
             {
-                notes.Add("Прежняя папка программы " + previous + " удалена не полностью (" + error.Message + ") — удали из неё вручную оставшиеся файлы " + AppIdentity.Name + ", а не запуском Uninstall.exe в ней: он удалит и новую установку.");
+                notes.Add("Прежняя папка программы " + previous + " удалена не полностью (" + error.Message + ") — удали из неё вручную оставшиеся файлы " + AppIdentity.Name + ", а не запуском Uninstall.exe в ней: он сломает и новую установку.");
             }
             catch (UnauthorizedAccessException error)
             {
-                notes.Add("Прежняя папка программы " + previous + " удалена не полностью (" + error.Message + ") — удали из неё вручную оставшиеся файлы " + AppIdentity.Name + ", а не запуском Uninstall.exe в ней: он удалит и новую установку.");
+                notes.Add("Прежняя папка программы " + previous + " удалена не полностью (" + error.Message + ") — удали из неё вручную оставшиеся файлы " + AppIdentity.Name + ", а не запуском Uninstall.exe в ней: он сломает и новую установку.");
             }
         }
 

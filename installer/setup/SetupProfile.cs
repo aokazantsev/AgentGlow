@@ -104,9 +104,31 @@ namespace AgentGlow
             AppSettings settings = reset ? new AppSettings() : AppSettings.LoadPatiently(SetupLog.Append);
             if (settings.ReadError != null) throw new InvalidOperationException("Не удалось прочитать настройки " + AppSettings.FilePath + ": " + settings.ReadError.TrimEnd('.') + ". " + settings.ReadAdvice);
             pendingSettings = settings;
-            CrashReportConsent.Set(request.Has(CrashReportConsent.OptionKey));
+            try
+            {
+                CrashReportConsent.Set(request.Has(CrashReportConsent.OptionKey));
+            }
+            catch (IOException error)
+            {
+                throw new InvalidOperationException("Не удалось записать выбор об отчётах о сбоях в папку " + AppIdentity.DataDirectory + " (" + error.Message.TrimEnd('.') + ").");
+            }
+            catch (UnauthorizedAccessException error)
+            {
+                throw new InvalidOperationException("Не удалось записать выбор об отчётах о сбоях в папку " + AppIdentity.DataDirectory + " (" + error.Message.TrimEnd('.') + ").");
+            }
             SetupLog.Append("crash reports: " + request.Has(CrashReportConsent.OptionKey));
-            UsageConsent.Set(request.Has(UsageConsent.OptionKey));
+            try
+            {
+                UsageConsent.Set(request.Has(UsageConsent.OptionKey));
+            }
+            catch (IOException error)
+            {
+                throw new InvalidOperationException("Не удалось записать выбор о статистике использования в папку " + AppIdentity.DataDirectory + " (" + error.Message.TrimEnd('.') + ").");
+            }
+            catch (UnauthorizedAccessException error)
+            {
+                throw new InvalidOperationException("Не удалось записать выбор о статистике использования в папку " + AppIdentity.DataDirectory + " (" + error.Message.TrimEnd('.') + ").");
+            }
             SetupLog.Append("usage statistics: " + request.Has(UsageConsent.OptionKey));
         }
 

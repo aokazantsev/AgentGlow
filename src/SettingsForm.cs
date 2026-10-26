@@ -14,6 +14,7 @@ namespace AgentGlow
         private const int ColorWidth = 60;
         private const int SpeedWidth = 56;
         private const int TestWidth = 96;
+        private const int WmActivate = 0x0006;
 
         private readonly AppSettings draft;
         private readonly Action<StatusEffect> preview;
@@ -31,6 +32,7 @@ namespace AgentGlow
         private readonly CheckBox launchOpenRgbBox = new CheckBox();
         private readonly CheckBox autoUpdateBox = new CheckBox();
         private readonly CheckBox usageStatisticsBox = new CheckBox();
+        private bool activating;
 
         public AppSettings Result;
         public bool AutoUpdateChosen;
@@ -73,6 +75,21 @@ namespace AgentGlow
         {
             base.OnShown(e);
             if (AutoScroll) AutoScrollPosition = Point.Empty;
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WmActivate && (m.WParam.ToInt64() & 0xFFFF) != 0 && AutoScroll && IsHandleCreated)
+            {
+                activating = true;
+                BeginInvoke((MethodInvoker)delegate { activating = false; });
+            }
+            base.WndProc(ref m);
+        }
+
+        protected override Point ScrollToControl(Control activeControl)
+        {
+            return activating ? DisplayRectangle.Location : base.ScrollToControl(activeControl);
         }
 
         private void KeepWheelForScrolling(Control parent)
