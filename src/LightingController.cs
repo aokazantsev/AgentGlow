@@ -153,16 +153,29 @@ namespace AgentGlow
         public bool CheckAlive()
         {
             if (client == null) return false;
+            string probed = null;
             try
             {
                 if (client.IsClosedByServer()) throw new IOException("OpenRGB закрыл соединение");
                 client.Ping();
+                var probes = Targets();
+                probes.AddRange(FixedTargets());
+                foreach (RgbController controller in probes)
+                {
+                    if (client.DeviceListPending) return true;
+                    probed = controller.Name;
+                    client.LoadController(controller.Index);
+                }
                 return true;
             }
             catch (Exception error)
             {
-                NotResponding = IsTimeout(error);
-                LastError = (NotResponding ? "OpenRGB перестал отвечать — " : "") + error.GetType().Name + ": " + error.Message;
+                bool listChanged = client.DeviceListPending;
+                NotResponding = IsTimeout(error) && !listChanged;
+                string prefix = probed == null ? "OpenRGB перестал отвечать — " : "OpenRGB перестал отвечать по устройству " + probed + " — ";
+                LastError = listChanged
+                    ? "список устройств OpenRGB изменился во время проверки связи"
+                    : (NotResponding ? prefix : "") + error.GetType().Name + ": " + error.Message;
                 Drop();
                 return false;
             }

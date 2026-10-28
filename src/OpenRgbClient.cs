@@ -33,6 +33,11 @@ namespace AgentGlow
 
         public bool SocketConnected { get; private set; }
 
+        public bool DeviceListPending
+        {
+            get { return deviceListUpdated; }
+        }
+
         public void Connect()
         {
             if (!IsServerListening()) throw new SocketException((int)SocketError.ConnectionRefused);
@@ -71,10 +76,15 @@ namespace AgentGlow
             var controllers = new List<RgbController>();
             for (int index = 0; index < count; index++)
             {
-                Send((uint)index, RequestControllerData, new ProtocolWriter().U32(ProtocolVersion).ToArray());
-                controllers.Add(ParseController(index, Receive(RequestControllerData)));
+                controllers.Add(LoadController(index));
             }
             return controllers;
+        }
+
+        public RgbController LoadController(int index)
+        {
+            Send((uint)index, RequestControllerData, new ProtocolWriter().U32(ProtocolVersion).ToArray());
+            return ParseController(index, Receive(RequestControllerData));
         }
 
         public void UpdateMode(int deviceIndex, int modeIndex, RgbMode mode)
